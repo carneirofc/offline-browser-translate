@@ -68,6 +68,7 @@ const FORMAT_DESCRIPTIONS = {
 };
 
 let currentSettings = { ...DEFAULT_SETTINGS };
+function debugLog(...args) { if (currentSettings.debug) console.log(...args); }
 let isTranslating = false;
 let detectedPageLanguage = 'en';
 
@@ -529,7 +530,7 @@ async function startTranslation() {
                 files: ['/content.js']
             });
         } catch (injectErr) {
-            console.log('Script injection note:', injectErr.message);
+            debugLog('[Popup] Script injection note:', injectErr.message);
             // May already be injected or page doesn't allow scripts
         }
 

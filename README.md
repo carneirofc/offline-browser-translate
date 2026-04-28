@@ -97,6 +97,12 @@ The codebase is intentionally simple with no build step or dependencies:
 - No bundler required
 - Works directly in the browser
 
+### Debug Logging
+
+Enable **"Enable debug logging"** in Options → Output Settings, then Save.
+
+To view logs, go to `about:debugging#/runtime/this-firefox`, find **Local LLM Translator**, and click **Inspect** — messages with `[Background]` prefix appear in the Console tab.
+
 ## License
 
 MIT

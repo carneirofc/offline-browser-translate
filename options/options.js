@@ -87,6 +87,7 @@ const elements = {
     temperatureValue: document.getElementById('temperatureValue'),
     useStructuredOutput: document.getElementById('useStructuredOutput'),
     showGlow: document.getElementById('showGlow'),
+    debugLogging: document.getElementById('debugLogging'),
     customPromptsSection: document.getElementById('customPromptsSection'),
     customSystem: document.getElementById('customSystem'),
     customUser: document.getElementById('customUser'),
@@ -260,6 +261,7 @@ function applySettingsToUI() {
     }
     elements.useStructuredOutput.checked = currentSettings.useStructuredOutput;
     elements.showGlow.checked = currentSettings.showGlow !== false;
+    elements.debugLogging.checked = !!currentSettings.debug;
     elements.customSystem.value = currentSettings.customSystemPrompt || '';
     elements.customUser.value = currentSettings.customUserPromptTemplate || '';
 
@@ -365,6 +367,7 @@ async function saveCurrentSettings() {
         temperature: parseFloat(elements.temperature.value) || 0.3,
         useStructuredOutput: elements.useStructuredOutput.checked,
         showGlow: elements.showGlow.checked,
+        debug: elements.debugLogging.checked,
         // Save custom prompts from the new prompt editor
         customSystemPrompt: elements.systemPrompt?.value || elements.customSystem?.value || '',
         customUserPromptTemplate: elements.userPrompt?.value || elements.customUser?.value || '',
