@@ -32,8 +32,14 @@ const DEFAULT_SETTINGS = {
     requestFormat: 'default', // 'default', 'translategemma', 'hunyuan', 'simple', 'custom'
     temperature: 0.3,
     useStructuredOutput: true,
-    showGlow: false  // Disabled by default
+    showGlow: false,
+    numCtx: 0,    // Ollama context window size (0 = model default)
+    debug: false  // Enable verbose logging
 };
+
+let debugEnabled = false;
+function debugLog(...args) { if (debugEnabled) console.log(...args); }
+function debugWarn(...args) { if (debugEnabled) console.warn(...args); }
 
 
 
@@ -80,6 +86,7 @@ async function loadSettings() {
     try {
         const result = await browserAPI.storage.local.get('settings');
         cachedSettings = { ...DEFAULT_SETTINGS, ...result.settings };
+        debugEnabled = !!cachedSettings.debug;
         return cachedSettings;
     } catch (e) {
         console.error('Failed to load settings:', e);
@@ -89,7 +96,9 @@ async function loadSettings() {
 }
 
 async function saveSettings(settings) {
-    cachedSettings = { ...DEFAULT_SETTINGS, ...settings };
+    // Merge defaults < cached < new so fields unknown to the caller are preserved
+    cachedSettings = { ...DEFAULT_SETTINGS, ...cachedSettings, ...settings };
+    debugEnabled = !!cachedSettings.debug;
     await browserAPI.storage.local.set({ settings: cachedSettings });
     return cachedSettings;
 }
@@ -138,25 +147,35 @@ async function detectProviders(ollamaUrl, lmstudioUrl) {
 }
 
 async function listOllamaModels(url) {
-    const response = await fetch(`${url}/api/tags`);
-    if (!response.ok) throw new Error('Failed to fetch Ollama models');
-    const data = await response.json();
-    return (data.models || []).map(m => ({
-        id: m.name,
-        name: m.name,
-        provider: 'ollama'
-    }));
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    try {
+        const response = await fetch(`${url}/api/tags`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error('Failed to fetch Ollama models');
+        const data = await response.json();
+        return (data.models || []).map(m => ({ id: m.name, name: m.name, provider: 'ollama' }));
+    } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') throw new Error('Ollama model listing timed out');
+        throw e;
+    }
 }
 
 async function listLMStudioModels(url) {
-    const response = await fetch(`${url}/v1/models`);
-    if (!response.ok) throw new Error('Failed to fetch LMStudio models');
-    const data = await response.json();
-    return (data.data || []).map(m => ({
-        id: m.id,
-        name: m.id,
-        provider: 'lmstudio'
-    }));
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    try {
+        const response = await fetch(`${url}/v1/models`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error('Failed to fetch LMStudio models');
+        const data = await response.json();
+        return (data.data || []).map(m => ({ id: m.id, name: m.id, provider: 'lmstudio' }));
+    } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') throw new Error('LMStudio model listing timed out');
+        throw e;
+    }
 }
 
 async function listModels(settings, useCache = true) {
@@ -285,34 +304,48 @@ function parseTranslationResponse(response, originalItems) {
         return translations;
     }
 
-    // Fallback: parse line-by-line format using ORIGINAL item IDs
-    // console.log('[Background] Using fallback line-by-line parsing');
-    const lines = response.split('\n').filter(l => l.trim());
-
-    for (let i = 0; i < Math.min(lines.length, expectedCount); i++) {
-        const line = lines[i];
-        // Try to extract ID from line like "[4]: translated text" or "4: translated text"
-        const match = line.match(/^\[?(\d+)\]?:\s*(.+)$/);
-        if (match) {
-            const parsedId = parseInt(match[1]);
-            // Check if this ID is in our original items
-            const isOurId = originalItems.some(item => item.id === parsedId);
-            if (isOurId) {
-                translations.push({ id: parsedId, text: match[2].trim() });
-            } else {
-                // LLM used sequential ID, map to our ID
-                translations.push({ id: originalItems[i]?.id, text: match[2].trim() });
-            }
-        } else {
-            // Use the ORIGINAL item's ID
-            const originalId = originalItems[i]?.id;
-            if (originalId !== undefined) {
-                translations.push({ id: originalId, text: line.trim() });
-            }
-        }
+    // Single item: the entire response is one translation (preserve newlines)
+    if (expectedCount === 1) {
+        let text = response.trim().replace(/^\[?\d+\]?:\s*/, '');
+        return [{ id: originalItems[0].id, text: cleanTranslationText(text) }];
     }
 
-    // console.log(`[Background] Fallback parsed ${translations.length} translations`);
+    // Fallback: parse by [id]: markers, grouping continuation lines per segment
+    const idMarkerRegex = /^\[?(\d+)\]?:\s*(.*)$/;
+    const segments = [];
+    let current = null;
+
+    for (const line of response.split('\n')) {
+        const match = line.match(idMarkerRegex);
+        if (match) {
+            if (current) segments.push(current);
+            current = { id: parseInt(match[1]), text: match[2] };
+        } else if (current) {
+            current.text += '\n' + line;
+        }
+    }
+    if (current) segments.push(current);
+
+    if (segments.length > 0) {
+        for (let i = 0; i < segments.length; i++) {
+            const seg = segments[i];
+            const text = seg.text.trim();
+            if (!text) continue;
+            const isOurId = originalItems.some(item => item.id === seg.id);
+            translations.push({
+                id: isOurId ? seg.id : (originalItems[i]?.id ?? seg.id),
+                text: cleanTranslationText(text)
+            });
+        }
+        return translations;
+    }
+
+    // Last resort: no markers found, one line = one translation
+    for (let i = 0; i < Math.min(response.split('\n').filter(l => l.trim()).length, expectedCount); i++) {
+        const line = response.split('\n').filter(l => l.trim())[i];
+        const originalId = originalItems[i]?.id;
+        if (originalId !== undefined) translations.push({ id: originalId, text: cleanTranslationText(line.trim()) });
+    }
     return translations;
 }
 
@@ -339,16 +372,27 @@ async function callOllama(settings, modelId, systemPrompt, userPrompt) {
     }
 
     body.prompt = systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt;
+    body.keep_alive = '30m';
+    body.options = {};
+    if (settings.temperature !== undefined) body.options.temperature = settings.temperature;
+    if (settings.numCtx) body.options.num_ctx = settings.numCtx;
 
-    if (settings.temperature !== undefined) {
-        body.options = { temperature: settings.temperature };
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
+    let response;
+    try {
+        response = await fetch(`${settings.ollamaUrl}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal
+        });
+    } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') throw new Error('Ollama request timed out after 5 minutes');
+        throw e;
     }
-
-    const response = await fetch(`${settings.ollamaUrl}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
         const error = await response.text();
@@ -356,6 +400,7 @@ async function callOllama(settings, modelId, systemPrompt, userPrompt) {
     }
 
     const data = await response.json();
+    debugLog(`[Background] callOllama: response length=${data.response?.length || 0}`);
     return data.response;
 }
 
@@ -409,11 +454,22 @@ async function callLMStudio(settings, modelId, systemPrompt, userPrompt) {
         body.response_format = TRANSLATION_SCHEMA;
     }
 
-    const response = await fetch(`${settings.lmstudioUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
+    let response;
+    try {
+        response = await fetch(`${settings.lmstudioUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal
+        });
+    } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') throw new Error('LMStudio request timed out after 5 minutes');
+        throw e;
+    }
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
         const error = await response.text();
@@ -486,6 +542,7 @@ async function translate(textItems, targetLanguage, settings) {
     const finalSystemPrompt = buildPrompt(systemPrompt, templateVars);
 
     // Call the appropriate provider
+    debugLog(`[Background] translate: provider=${provider} model=${modelId} format=${templateKey} items=${textItems.length}`);
     let response;
     if (provider === 'ollama') {
         response = await callOllama(settings, modelId, finalSystemPrompt, userPrompt);
@@ -493,8 +550,7 @@ async function translate(textItems, targetLanguage, settings) {
         response = await callLMStudio(settings, modelId, finalSystemPrompt, userPrompt);
     }
 
-    // console.log(`[Background] Raw LLM response (first 500 chars):`, response.substring(0, 500));
-    // console.log(`[Background] Sent ${textItems.length} items, IDs:`, textItems.map(t => t.id));
+    debugLog(`[Background] Raw LLM response (first 500 chars):`, response.substring(0, 500));
 
     // Parse response - pass original items so we can use their IDs in fallback
     return parseTranslationResponse(response, textItems);
