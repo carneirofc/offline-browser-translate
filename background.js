@@ -632,12 +632,13 @@ browserAPI.runtime.onInstalled.addListener(() => {
         id: "translate-page",
         title: "Translate Page",
         contexts: ["page"]
-    }, () => {
-        // Ignore error if item already exists
-        if (browserAPI.runtime.lastError) {
-            // Suppress duplicate id error
-        }
-    });
+    }, () => { if (browserAPI.runtime.lastError) {} });
+
+    browserAPI.contextMenus.create({
+        id: "translate-selection",
+        title: "Translate Selection",
+        contexts: ["selection"]
+    }, () => { if (browserAPI.runtime.lastError) {} });
 });
 
 browserAPI.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -701,6 +702,50 @@ browserAPI.contextMenus.onClicked.addListener(async (info, tab) => {
 
         } catch (e) {
             console.error('[Background] Context menu translation failed:', e);
+        }
+    } else if (info.menuItemId === "translate-selection") {
+        if (!tab || !tab.id) return;
+
+        try {
+            const settings = await getSettings();
+
+            let sourceLang = settings.sourceLanguage;
+            if (!sourceLang || sourceLang === 'auto') {
+                try {
+                    const result = await browserAPI.scripting.executeScript({
+                        target: { tabId: tab.id },
+                        func: () => {
+                            const htmlLang = document.documentElement.lang || document.querySelector('html')?.getAttribute('lang');
+                            if (htmlLang) return htmlLang.split('-')[0].toLowerCase();
+                            const metaLang = document.querySelector('meta[http-equiv="content-language"]')?.getAttribute('content');
+                            if (metaLang) return metaLang.split('-')[0].toLowerCase();
+                            return null;
+                        }
+                    });
+                    if (result?.[0]?.result) sourceLang = result[0].result;
+                } catch (detectErr) { /* ignore */ }
+            }
+
+            const sendSelectionMessage = async () => {
+                await browserAPI.tabs.sendMessage(tab.id, {
+                    type: 'TRANSLATE_SELECTION',
+                    targetLanguage: settings.targetLanguage,
+                    sourceLanguage: sourceLang || 'auto',
+                    showGlow: settings.showGlow,
+                    maxConcurrentRequests: settings.maxConcurrentRequests || 4
+                });
+            };
+
+            try {
+                await sendSelectionMessage();
+            } catch (e) {
+                await browserAPI.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+                await new Promise(resolve => setTimeout(resolve, 200));
+                await sendSelectionMessage();
+            }
+
+        } catch (e) {
+            console.error('[Background] Context menu selection translation failed:', e);
         }
     }
 });
