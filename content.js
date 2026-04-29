@@ -19,20 +19,28 @@ let debugEnabled = false;
 function debugLog(...args) { if (debugEnabled) console.log(...args); }
 function debugWarn(...args) { if (debugEnabled) console.warn(...args); }
 
+let floatingButtonEnabled = false;
+
 browserAPI.runtime.sendMessage({ type: 'GET_SETTINGS' }).then(r => {
     if (r?.settings) {
         debugEnabled = !!r.settings.debug;
         if (r.settings.targetLanguage) currentTargetLanguage = r.settings.targetLanguage;
+        floatingButtonEnabled = !!r.settings.floatingButton;
     }
 }).catch(() => {});
 
 // Keep currentTargetLanguage in sync when user changes settings in popup/options
 browserAPI.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !changes.settings) return;
-    const newLang = changes.settings.newValue?.targetLanguage;
+    const newSettings = changes.settings.newValue;
+    const newLang = newSettings?.targetLanguage;
     if (newLang && newLang !== currentTargetLanguage) {
         currentTargetLanguage = newLang;
         updateFloatingBtnTitle();
+    }
+    if (typeof newSettings?.floatingButton === 'boolean') {
+        floatingButtonEnabled = newSettings.floatingButton;
+        if (!floatingButtonEnabled) hideFloatingBtn();
     }
 });
 
@@ -624,7 +632,7 @@ async function translateBatch(textItems, targetLanguage, sourceLanguage = 'auto'
     }
 
     // All retries failed - return all items as failed
-    console.error(`[Translator] All retries failed for batch of ${textItems.length} items`);
+    console.error(`[Translator] All retries failed for batch of ${textItems.length} items. Last error: ${lastError?.message}`);
     return { applied: 0, failed: textItems };
 }
 
@@ -1201,6 +1209,7 @@ function hideFloatingBtn() {
 }
 
 function tryShowFloatingBtn() {
+    if (!floatingButtonEnabled) return;
     const selection = window.getSelection();
     const selectedText = selection?.toString().trim() || '';
     const sameLanguage = getPageLanguage() === currentTargetLanguage;

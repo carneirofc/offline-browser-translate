@@ -116,7 +116,7 @@ async function getSettings() {
 // ============================================================================
 
 async function detectProviders(ollamaUrl, lmstudioUrl) {
-    const results = { ollama: false, lmstudio: false };
+    const results = { ollama: false, ollama_blocked: false, lmstudio: false };
 
     try {
         const controller = new AbortController();
@@ -128,7 +128,22 @@ async function detectProviders(ollamaUrl, lmstudioUrl) {
         clearTimeout(timeout);
         results.ollama = response.ok;
     } catch (e) {
-        results.ollama = false;
+        // Normal fetch failed — could be server not running, or CORS blocking the response.
+        // Try a no-cors fetch: it gives an opaque response (can't read status/body) but
+        // will not throw if the server is reachable, only if it is truly unreachable.
+        try {
+            const controller2 = new AbortController();
+            const timeout2 = setTimeout(() => controller2.abort(), 2000);
+            await fetch(`${ollamaUrl}/api/tags`, {
+                method: 'GET',
+                mode: 'no-cors',
+                signal: controller2.signal
+            });
+            clearTimeout(timeout2);
+            results.ollama_blocked = true;
+        } catch (_) {
+            results.ollama = false;
+        }
     }
 
     try {
@@ -428,8 +443,11 @@ async function callOllama(settings, modelId, systemPrompt, userPrompt) {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
+        if (response.status === 403) {
+            throw new Error('Ollama returned 403 Forbidden. The extension is being blocked by Ollama\'s CORS policy. You need to enable CORS in Ollama.');
+        }
         const error = await response.text();
-        throw new Error(`Ollama error: ${error}`);
+        throw new Error(`Ollama error (${response.status}): ${error || '(empty response)'}`);
     }
 
     const data = await response.json();

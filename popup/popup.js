@@ -317,6 +317,11 @@ async function checkProviders() {
             statusWrapper.title = `Connected: ${providers.join(', ')}`;
             providersAvailable = true;
             hideSetupBanner();
+        } else if (response.ollama_blocked) {
+            statusDot.className = 'status-dot error';
+            statusWrapper.title = 'Ollama is running but blocking the extension (CORS)';
+            providersAvailable = false;
+            showSetupBanner('cors-blocked');
         } else {
             statusDot.className = 'status-dot error';
             statusWrapper.title = 'No providers found';
@@ -331,33 +336,43 @@ async function checkProviders() {
     }
 }
 
+function bannerHTML(type) {
+    if (type === 'no-models') {
+        return `
+            <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">No translation models found</div>
+            <div>Your LLM provider is connected, but you have not downloaded a translation model yet.</div>
+            <div style="margin-top: 6px;">Recommended model:</div>
+            <div style="background: var(--bg1, #2b2b2b); padding: 4px 8px; border-radius: 4px; font-family: monospace; display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+                <code>ollama pull translategemma</code>
+            </div>
+            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Or download a model in LMStudio (search for "translate"). Click the refresh button above when done.</div>
+        `;
+    }
+    if (type === 'cors-blocked') {
+        return `
+            <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">Ollama is blocking the extension</div>
+            <div>Ollama is running, but it is not allowing requests from browser extensions. You need to enable CORS.</div>
+            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;"><a href="https://api.onlyoffice.com/docs/plugin-and-macros/ai/configuring-ollama-with-cors/" target="_blank" style="color: var(--accent, #a7c080);">See instructions for your OS here</a>. Click the refresh button above when done.</div>
+        `;
+    }
+    return `
+        <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">No LLM provider detected</div>
+        <div>To use this extension, you need a local LLM server running:</div>
+        <ol style="margin: 6px 0 2px 18px; padding: 0;">
+            <li>Install <a href="https://ollama.com" target="_blank" style="color: var(--accent, #a7c080);">Ollama</a> or <a href="https://lmstudio.ai" target="_blank" style="color: var(--accent, #a7c080);">LMStudio</a></li>
+            <li>Load a translation model (e.g. <code style="background: var(--bg1, #2b2b2b); padding: 1px 4px; border-radius: 3px;">ollama pull translategemma</code>)</li>
+            <li>Click the refresh button above</li>
+        </ol>
+    `;
+}
+
 // Show/hide first-run setup guidance banner
 function showSetupBanner(type = 'no-provider') {
     let banner = document.getElementById('setup-banner');
     if (banner) {
         banner.hidden = false;
         // Update content if it already exists
-        if (type === 'no-models') {
-            banner.innerHTML = `
-                <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">⚠️ No translation models found</div>
-                <div>Your LLM provider is connected, but you haven't downloaded a translation model yet.</div>
-                <div style="margin-top: 6px;">Recommended model:</div>
-                <div style="background: var(--bg1, #2b2b2b); padding: 4px 8px; border-radius: 4px; font-family: monospace; display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
-                    <code>ollama pull translategemma2</code>
-                </div>
-                <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Or download a model in LMStudio (search for "translate"). Click ↻ above when done.</div>
-            `;
-        } else {
-            banner.innerHTML = `
-                <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">⚠️ No LLM provider detected</div>
-                <div>To use this extension, you need a local LLM server running:</div>
-                <ol style="margin: 6px 0 2px 18px; padding: 0;">
-                    <li>Install <a href="https://ollama.com" target="_blank" style="color: var(--accent, #a7c080);">Ollama</a> or <a href="https://lmstudio.ai" target="_blank" style="color: var(--accent, #a7c080);">LMStudio</a></li>
-                    <li>Load a translation model (e.g. <code style="background: var(--bg1, #2b2b2b); padding: 1px 4px; border-radius: 3px;">ollama pull translategemma2</code>)</li>
-                    <li>Click the refresh button ↻ above</li>
-                </ol>
-            `;
-        }
+        banner.innerHTML = bannerHTML(type);
         return;
     }
 
@@ -373,28 +388,7 @@ function showSetupBanner(type = 'no-provider') {
         line-height: 1.5;
         color: var(--fg, #d3c6aa);
     `;
-    
-    if (type === 'no-models') {
-        banner.innerHTML = `
-            <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">⚠️ No translation models found</div>
-            <div>Your LLM provider is connected, but you haven't downloaded a translation model yet.</div>
-            <div style="margin-top: 6px;">Recommended model:</div>
-            <div style="background: var(--bg1, #2b2b2b); padding: 4px 8px; border-radius: 4px; font-family: monospace; display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
-                <code>ollama pull translategemma2</code>
-            </div>
-            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Or download a model in LMStudio (search for "translate"). Click ↻ above when done.</div>
-        `;
-    } else {
-        banner.innerHTML = `
-            <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">⚠️ No LLM provider detected</div>
-            <div>To use this extension, you need a local LLM server running:</div>
-            <ol style="margin: 6px 0 2px 18px; padding: 0;">
-                <li>Install <a href="https://ollama.com" target="_blank" style="color: var(--accent, #a7c080);">Ollama</a> or <a href="https://lmstudio.ai" target="_blank" style="color: var(--accent, #a7c080);">LMStudio</a></li>
-                <li>Load a translation model (e.g. <code style="background: var(--bg1, #2b2b2b); padding: 1px 4px; border-radius: 3px;">ollama pull translategemma2</code>)</li>
-                <li>Click the refresh button ↻ above</li>
-            </ol>
-        `;
-    }
+    banner.innerHTML = bannerHTML(type);
 
     // Insert after the model selector row
     const modelRow = elements.modelSelect?.closest('.row') || elements.modelSelect?.parentElement;
