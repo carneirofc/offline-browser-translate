@@ -6,7 +6,6 @@
 // Use browser API with chrome fallback
 const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
-// Import languages
 // Import languages (for Service Worker context)
 if (typeof importScripts === 'function') {
     importScripts('languages.js');
@@ -29,9 +28,11 @@ const DEFAULT_SETTINGS = {
     useAdvanced: false,
     customSystemPrompt: '',
     customUserPromptTemplate: '',
-    requestFormat: 'default', // 'default', 'translategemma', 'hunyuan', 'simple', 'custom'
+    requestFormat: 'auto', // 'auto' (detect from model), 'default', 'translategemma', 'hunyuan', 'simple', 'custom'
     temperature: 0.3,
     useStructuredOutput: true,
+    maxOutputRetries: 2,    // Extra attempts when the model returns malformed/missing translations
+    plainTextFallback: true, // After JSON retries fail, translate the failed items one-by-one as plain text
     showGlow: false,
     numCtx: 0,          // Ollama context window size (0 = model default)
     debug: false,       // Enable verbose logging
@@ -41,8 +42,6 @@ const DEFAULT_SETTINGS = {
 let debugEnabled = false;
 function debugLog(...args) { if (debugEnabled) console.log(...args); }
 function debugWarn(...args) { if (debugEnabled) console.warn(...args); }
-
-
 
 const PROMPT_TEMPLATES = {
     default: {
@@ -116,7 +115,7 @@ async function getSettings() {
 // ============================================================================
 
 async function detectProviders(ollamaUrl, lmstudioUrl) {
-    const results = { ollama: false, ollama_blocked: false, lmstudio: false };
+    const results = { ollama: false, ollama_blocked: false, lmstudio: false, lmstudio_blocked: false };
 
     try {
         const controller = new AbortController();
@@ -156,7 +155,20 @@ async function detectProviders(ollamaUrl, lmstudioUrl) {
         clearTimeout(timeout);
         results.lmstudio = response.ok;
     } catch (e) {
-        results.lmstudio = false;
+        // Try a no-cors fetch to see if server is running but CORS is blocking the response
+        try {
+            const controller2 = new AbortController();
+            const timeout2 = setTimeout(() => controller2.abort(), 2000);
+            await fetch(`${lmstudioUrl}/v1/models`, {
+                method: 'GET',
+                mode: 'no-cors',
+                signal: controller2.signal
+            });
+            clearTimeout(timeout2);
+            results.lmstudio_blocked = true;
+        } catch (_) {
+            results.lmstudio = false;
+        }
     }
 
     return results;
@@ -203,21 +215,21 @@ async function listModels(settings, useCache = true) {
     const models = [];
     const provider = settings.provider;
 
-    if (provider === 'ollama' || provider === 'auto') {
-        try {
-            const ollamaModels = await listOllamaModels(settings.ollamaUrl);
-            models.push(...ollamaModels);
-        } catch (e) {
-            if (provider === 'ollama') throw e;
-        }
-    }
-
     if (provider === 'lmstudio' || provider === 'auto') {
         try {
             const lmstudioModels = await listLMStudioModels(settings.lmstudioUrl);
             models.push(...lmstudioModels);
         } catch (e) {
             if (provider === 'lmstudio') throw e;
+        }
+    }
+
+    if (provider === 'ollama' || provider === 'auto') {
+        try {
+            const ollamaModels = await listOllamaModels(settings.ollamaUrl);
+            models.push(...ollamaModels);
+        } catch (e) {
+            if (provider === 'ollama') throw e;
         }
     }
 
@@ -232,8 +244,6 @@ async function listModels(settings, useCache = true) {
 // Translation Logic
 // ============================================================================
 
-
-
 function formatTextsForPrompt(textItems) {
     return textItems.map(item => `[${item.id}]: ${item.text}`).join('\n');
 }
@@ -246,17 +256,66 @@ function buildPrompt(template, vars) {
     return result;
 }
 
+// A small allowlist of inline HTML tags that occasionally leak from models.
+// We only strip these — arbitrary "<...>" is left alone so legitimate text like
+// "a < b" or "<3" is never mangled.
+const LEAKED_HTML_TAG = /<\/?(?:div|span|p|br|b|i|em|strong|ul|ol|li|a|h[1-6])\b[^>]*>/gi;
+
 // Clean translation text - remove ID prefixes and HTML garbage that LLM might include
 function cleanTranslationText(text) {
     if (!text) return text;
     // Remove patterns like "[99]: ", "[99]:", "99: ", "99:" at start of text
     let cleaned = text.replace(/^\[?\d+\]?:\s*/g, '');
-    // Remove HTML tags that might leak through (like </div>, <span>, etc.)
-    cleaned = cleaned.replace(/<\/?[a-z][a-z0-9]*[^>]*>/gi, '');
+    // Remove only known HTML tags that occasionally leak through
+    cleaned = cleaned.replace(LEAKED_HTML_TAG, '');
     // Normalize multiple spaces to single space (but preserve leading/trailing)
     cleaned = cleaned.replace(/  +/g, ' ');
     // Don't trim - let content.js handle whitespace preservation from original
     return cleaned;
+}
+
+// Heuristic: does this string look like leaked structure (JSON/markup) rather
+// than an actual translation? Used to reject garbage so the page keeps its
+// original text instead of being broken. Be conservative to avoid false positives.
+function isSuspiciousTranslation(text) {
+    if (text === null || text === undefined) return true;
+    const t = String(text).trim();
+    if (!t) return true;
+    // Must contain at least one letter — pure punctuation/braces is garbage.
+    if (!/\p{L}/u.test(t)) return true;
+    // Leaked JSON keys from our own schema.
+    if (/["']?(?:translations|id|text)["']?\s*:/.test(t)) return true;
+    // Wrapped in a JSON object/array container with a quote or colon inside.
+    if (/^[\[{][\s\S]*[\]}]$/.test(t) && /["':]/.test(t)) return true;
+    // Markdown code fence.
+    if (t.includes('```')) return true;
+    return false;
+}
+
+// Extract the first balanced {...} object from a string, respecting strings and
+// escapes. More reliable than a greedy regex when the model adds prose around it.
+function extractJsonObject(text) {
+    const start = text.indexOf('{');
+    if (start === -1) return null;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < text.length; i++) {
+        const ch = text[i];
+        if (inString) {
+            if (escaped) escaped = false;
+            else if (ch === '\\') escaped = true;
+            else if (ch === '"') inString = false;
+        } else if (ch === '"') {
+            inString = true;
+        } else if (ch === '{') {
+            depth++;
+        } else if (ch === '}') {
+            depth--;
+            if (depth === 0) return text.slice(start, i + 1);
+        }
+    }
+    return null; // Unbalanced (e.g. truncated) — let the caller fall back.
 }
 
 function parseTranslationResponse(response, originalItems) {
@@ -279,13 +338,15 @@ function parseTranslationResponse(response, originalItems) {
             translations = parsed;
         }
     } catch (e) {
-        // Try to extract JSON from response
-        const jsonMatch = response.match(/\{[\s\S]*"translations"[\s\S]*\}/);
-        if (jsonMatch) {
+        // Try to extract a balanced JSON object embedded in surrounding prose
+        const jsonStr = extractJsonObject(response);
+        if (jsonStr) {
             try {
-                const parsed = JSON.parse(jsonMatch[0]);
-                if (parsed.translations) {
+                const parsed = JSON.parse(jsonStr);
+                if (parsed.translations && Array.isArray(parsed.translations)) {
                     translations = parsed.translations;
+                } else if (Array.isArray(parsed)) {
+                    translations = parsed;
                 }
             } catch (e2) {
                 // Fall through to line-by-line parsing
@@ -373,22 +434,15 @@ async function autoDetectAndSelectModel() {
         const models = await listModels(settings, false); // force fresh fetch
         if (models.length === 0) return null;
 
-        // Prefer TranslateGemma if loaded, otherwise take the first available model
-        const preferred = models.find(m =>
-            m.id.toLowerCase().includes('translategemma') ||
-            m.id.toLowerCase().includes('translate-gemma')
-        ) || models[0];
+        // Prefer a translation-specialized model if one is loaded, else first available.
+        // The request format is derived from the model automatically (requestFormat: 'auto'),
+        // so we only need to pick the model and provider here.
+        const preferred = models.find(m => detectRequestFormat(m.id) !== 'default') || models[0];
 
-        const updates = {
+        await saveSettings({
             selectedModel: preferred.id,
             provider: preferred.provider
-        };
-
-        const isTranslateGemma = preferred.id.toLowerCase().includes('translategemma') ||
-            preferred.id.toLowerCase().includes('translate-gemma');
-        if (isTranslateGemma) updates.requestFormat = 'translategemma';
-
-        await saveSettings(updates);
+        });
         console.log(`[Background] Auto-selected model: ${preferred.id} (${preferred.provider})`);
         return preferred;
     } catch (e) {
@@ -404,19 +458,19 @@ async function detectModelProvider(modelId, settings) {
     return model ? model.provider : null;
 }
 
-// Formats that produce plain text (not JSON) — never force JSON output for these
-const PLAIN_TEXT_FORMATS = new Set(['translategemma', 'hunyuan']);
+// PLAIN_TEXT_FORMATS comes from languages.js (shared with the UIs).
 
-async function callOllama(settings, modelId, systemPrompt, userPrompt) {
+async function callOllama(settings, modelId, systemPrompt, userPrompt, jsonOutput) {
     const body = {
         model: modelId,
         stream: false
     };
 
-    // Only request JSON format for formats that actually produce JSON
-    const isPlainTextFormat = PLAIN_TEXT_FORMATS.has(settings.requestFormat);
-    if (settings.useStructuredOutput && !isPlainTextFormat) {
-        body.format = 'json';
+    // Request a schema-constrained JSON object when the caller wants structure.
+    // Passing the full schema (not just 'json') makes Ollama enforce the shape,
+    // not just valid-JSON-ness.
+    if (jsonOutput) {
+        body.format = TRANSLATION_JSON_SCHEMA;
     }
 
     body.prompt = systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt;
@@ -457,34 +511,28 @@ async function callOllama(settings, modelId, systemPrompt, userPrompt) {
 
 
 
-const TRANSLATION_SCHEMA = {
-    "type": "json_schema",
-    "json_schema": {
-        "name": "translation_response",
-        "strict": true,
-        "schema": {
-            "type": "object",
-            "properties": {
-                "translations": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "id": { "type": "integer" },
-                            "text": { "type": "string" }
-                        },
-                        "required": ["id", "text"],
-                        "additionalProperties": false
-                    }
-                }
-            },
-            "required": ["translations"],
-            "additionalProperties": false
+// JSON schema for the batched translation response. The inner shape is shared:
+// Ollama wants the bare schema in `format`, LMStudio/OpenAI want it wrapped.
+const TRANSLATION_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "translations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "integer" },
+                    "text": { "type": "string" }
+                },
+                "required": ["id", "text"],
+                "additionalProperties": false
+            }
         }
-    }
+    },
+    "required": ["translations"],
+    "additionalProperties": false
 };
-
-async function callLMStudio(settings, modelId, systemPrompt, userPrompt) {
+async function callLMStudio(settings, modelId, systemPrompt, userPrompt, jsonOutput) {
     const messages = [];
 
     if (systemPrompt) {
@@ -499,10 +547,15 @@ async function callLMStudio(settings, modelId, systemPrompt, userPrompt) {
         stream: false
     };
 
-    // Only request structured output for formats that produce JSON
-    const isPlainTextFormat = PLAIN_TEXT_FORMATS.has(settings.requestFormat);
-    if (settings.useStructuredOutput && !isPlainTextFormat) {
-        body.response_format = TRANSLATION_SCHEMA;
+    if (jsonOutput) {
+        body.response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "translation_response",
+                "strict": true,
+                "schema": TRANSLATION_JSON_SCHEMA
+            }
+        };
     }
 
     const controller = new AbortController();
@@ -518,6 +571,9 @@ async function callLMStudio(settings, modelId, systemPrompt, userPrompt) {
     } catch (e) {
         clearTimeout(timeoutId);
         if (e.name === 'AbortError') throw new Error('LMStudio request timed out after 5 minutes');
+        if (e instanceof TypeError) {
+            throw new Error('Failed to connect to LMStudio. The extension is being blocked by LMStudio\'s CORS policy or the server is offline. You need to enable CORS in LMStudio.');
+        }
         throw e;
     }
     clearTimeout(timeoutId);
@@ -536,6 +592,24 @@ async function callLMStudio(settings, modelId, systemPrompt, userPrompt) {
     return content;
 }
 
+// Low-level call to whichever provider, returning the raw text response.
+async function callProvider(provider, settings, modelId, systemPrompt, userPrompt, jsonOutput) {
+    if (provider === 'ollama') {
+        return callOllama(settings, modelId, systemPrompt, userPrompt, jsonOutput);
+    }
+    return callLMStudio(settings, modelId, systemPrompt, userPrompt, jsonOutput);
+}
+
+// Translate a single text as plain text (no JSON), used as the last-resort
+// fallback when structured output keeps failing. The whole response IS the
+// translation — nothing to parse, nothing to break the page.
+async function translatePlainItem(provider, settings, modelId, text, vars) {
+    const systemPrompt = `You are a professional translator. Translate the user's text into ${vars.targetLang}. Output ONLY the translation, with no quotes, labels, JSON, or commentary.`;
+    const userPrompt = text;
+    const raw = await callProvider(provider, settings, modelId, systemPrompt, userPrompt, false);
+    return cleanTranslationText((raw || '').trim());
+}
+
 async function translate(textItems, targetLanguage, settings) {
     const modelId = settings.selectedModel;
     if (!modelId) throw new Error('No model selected');
@@ -547,64 +621,108 @@ async function translate(textItems, targetLanguage, settings) {
         if (!provider) throw new Error('Could not detect model provider');
     }
 
-    // Get prompt template
-    const templateKey = settings.requestFormat || 'default';
-    const template = PROMPT_TEMPLATES[templateKey] || PROMPT_TEMPLATES.default;
+    // Resolve the effective request format ('auto' -> derived from the model).
+    const format = resolveRequestFormat(settings, modelId);
+    const isPlainText = PLAIN_TEXT_FORMATS.has(format);
+    const template = PROMPT_TEMPLATES[format] || PROMPT_TEMPLATES.default;
 
     // Use custom prompts if advanced mode is enabled
-    let systemPrompt = template.system;
-    let userPromptTemplate = template.user;
-
+    let systemTemplate = template.system;
+    let userTemplate = template.user;
     if (settings.useAdvanced) {
-        if (settings.customSystemPrompt) {
-            systemPrompt = settings.customSystemPrompt;
-        }
-        if (settings.customUserPromptTemplate) {
-            userPromptTemplate = settings.customUserPromptTemplate;
-        }
+        if (settings.customSystemPrompt) systemTemplate = settings.customSystemPrompt;
+        if (settings.customUserPromptTemplate) userTemplate = settings.customUserPromptTemplate;
     }
 
-    // Build prompts
-    const textsFormatted = formatTextsForPrompt(textItems);
-
-    // Prepare variables for template substitution
+    // Template variables shared across attempts
     const targetLangName = getLanguageName(targetLanguage);
-    const targetLangCode = targetLanguage.toUpperCase();
-
-    // Source language handling (for TranslateGemma)
-    // Settings.sourceLanguage is already populated from the message handler
-    let sourceLangCode = (settings.sourceLanguage && settings.sourceLanguage !== 'auto')
+    const sourceLangCode = (settings.sourceLanguage && settings.sourceLanguage !== 'auto')
         ? settings.sourceLanguage
         : 'en';
-    let sourceLangName = getLanguageName(sourceLangCode);
-
-    // Build template variables
-    const templateVars = {
+    const baseVars = {
         targetLanguage: targetLangName,
-        texts: textsFormatted,
-        // TranslateGemma-specific variables
-        sourceLang: sourceLangName,
+        sourceLang: getLanguageName(sourceLangCode),
         sourceCode: sourceLangCode.toUpperCase(),
         targetLang: targetLangName,
-        targetCode: targetLangCode
+        targetCode: targetLanguage.toUpperCase()
     };
 
-    const userPrompt = buildPrompt(userPromptTemplate, templateVars);
-    const finalSystemPrompt = buildPrompt(systemPrompt, templateVars);
+    // Whether to request schema-constrained JSON for this (structured) format.
+    const wantJson = !!settings.useStructuredOutput && !isPlainText;
 
-    // Call the appropriate provider
-    debugLog(`[Background] translate: provider=${provider} model=${modelId} format=${templateKey} items=${textItems.length}`);
-    let response;
-    if (provider === 'ollama') {
-        response = await callOllama(settings, modelId, finalSystemPrompt, userPrompt);
-    } else {
-        response = await callLMStudio(settings, modelId, finalSystemPrompt, userPrompt);
+    // Run one batched request for the given subset of items, returning a Map of
+    // id -> good translation text (suspicious/empty results are dropped).
+    const requestBatch = async (items) => {
+        // Map items to 0-indexed sequential IDs for the prompt to avoid confusing the LLM
+        const mappedItems = items.map((item, index) => ({ id: index, text: item.text, originalId: item.id }));
+        
+        const vars = { ...baseVars, texts: formatTextsForPrompt(mappedItems) };
+        const userPrompt = buildPrompt(userTemplate, vars);
+        const systemPrompt = buildPrompt(systemTemplate, vars);
+        const raw = await callProvider(provider, settings, modelId, systemPrompt, userPrompt, wantJson);
+        debugLog(`[Background] Raw LLM response (first 300 chars):`, (raw || '').substring(0, 300));
+        
+        // Parse using the mapped items so it expects 0, 1, 2...
+        const parsed = parseTranslationResponse(raw, mappedItems);
+        const good = new Map();
+        for (const t of parsed) {
+            if (t && t.text && !t.error && !isSuspiciousTranslation(t.text)) {
+                // Find the original item to get its real ID
+                const originalItem = mappedItems.find(m => m.id === t.id);
+                if (originalItem) {
+                    good.set(originalItem.originalId, t.text);
+                }
+            }
+        }
+        return good;
+    };
+
+    const results = new Map();          // id -> final translated text
+    let pending = [...textItems];       // items still needing a good translation
+
+    // Attempt the batched request, retrying only the items that came back
+    // missing or malformed. maxOutputRetries extra attempts after the first.
+    const maxRetries = Number.isInteger(settings.maxOutputRetries) ? settings.maxOutputRetries : 2;
+    debugLog(`[Background] translate: provider=${provider} model=${modelId} format=${format} items=${textItems.length} json=${wantJson}`);
+    for (let attempt = 0; attempt <= maxRetries && pending.length > 0; attempt++) {
+        let good;
+        try {
+            good = await requestBatch(pending);
+        } catch (e) {
+            if (attempt === maxRetries) throw e; // bubble transport errors on last try
+            debugWarn(`[Background] batch attempt ${attempt + 1} threw:`, e.message);
+            continue;
+        }
+        for (const item of pending) {
+            const text = good.get(item.id);
+            if (text !== undefined) results.set(item.id, text);
+        }
+        pending = pending.filter(item => !results.has(item.id));
+        if (pending.length) {
+            debugWarn(`[Background] ${pending.length} item(s) malformed/missing after attempt ${attempt + 1}`);
+        }
     }
 
-    debugLog(`[Background] Raw LLM response (first 500 chars):`, response.substring(0, 500));
+    // Plain-text fallback: translate the still-failing items one-by-one with no
+    // structure to parse. Only for JSON-style formats (plain formats already are).
+    if (pending.length > 0 && !isPlainText && settings.plainTextFallback !== false) {
+        debugWarn(`[Background] Falling back to plain-text translation for ${pending.length} item(s)`);
+        for (const item of pending) {
+            try {
+                const text = await translatePlainItem(provider, settings, modelId, item.text, baseVars);
+                if (text && !isSuspiciousTranslation(text)) results.set(item.id, text);
+            } catch (e) {
+                debugWarn(`[Background] plain-text fallback failed for id ${item.id}:`, e.message);
+            }
+        }
+        pending = textItems.filter(item => !results.has(item.id));
+    }
 
-    // Parse response - pass original items so we can use their IDs in fallback
-    return parseTranslationResponse(response, textItems);
+    // Build the final array in original order. Items that never succeeded are
+    // returned with an error so the content script keeps their original text.
+    return textItems.map(item => results.has(item.id)
+        ? { id: item.id, text: results.get(item.id) }
+        : { id: item.id, error: 'translation failed' });
 }
 
 // ============================================================================

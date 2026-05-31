@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS = {
     useAdvanced: false,
     customSystemPrompt: '',
     customUserPromptTemplate: '',
-    requestFormat: 'default',
+    requestFormat: 'auto',
     temperature: 0.3,
     useStructuredOutput: true,
     showGlow: false
@@ -259,7 +259,8 @@ function swapLanguages() {
 // ============================================================================
 
 async function translateText() {
-    const text = els.sourceText.value.trim();
+    const rawText = els.sourceText.value;
+    const text = rawText.trim();
     if (!text || isTranslating) return;
 
     if (!selectedModel) {
@@ -271,6 +272,9 @@ async function translateText() {
     setTranslatingUI(true);
 
     try {
+        const leadingSpace = rawText.match(/^\s*/)[0];
+        const trailingSpace = rawText.match(/\s*$/)[0];
+
         // Build a single text item for the background script
         const textItems = [{ id: 0, text: text }];
 
@@ -287,7 +291,20 @@ async function translateText() {
 
         const translations = response.translations || [];
         if (translations.length > 0 && translations[0].text) {
-            showTranslation(translations[0].text);
+            const trimmedTranslation = (translations[0].text || '').trim();
+            
+            // For spaceless languages (Japanese, Chinese, etc.), add spacing when translating
+            // to spaced languages if there was no original spacing
+            let effectiveTrailingSpace = trailingSpace;
+            if (!effectiveTrailingSpace && trimmedTranslation) {
+                const hasCJK = /[\u3000-\u9fff\uff00-\uffef]/.test(rawText);
+                if (hasCJK) {
+                    effectiveTrailingSpace = ' ';
+                }
+            }
+
+            const processedText = leadingSpace + trimmedTranslation + effectiveTrailingSpace;
+            showTranslation(processedText);
         } else {
             showTranslationError('No translation returned');
         }
@@ -368,15 +385,48 @@ async function checkStatus() {
     try {
         await loadSettings();
         const response = await browserAPI.runtime.sendMessage({ type: 'DETECT_PROVIDERS' });
+        const providerSetting = currentSettings.provider; // 'auto', 'ollama', 'lmstudio'
 
-        const providers = [];
-        if (response.ollama) providers.push('Ollama');
-        if (response.lmstudio) providers.push('LMStudio');
+        let activeProvider = providerSetting;
+        if (activeProvider === 'auto' && selectedModelProvider) {
+            activeProvider = selectedModelProvider;
+        }
 
-        if (providers.length > 0) {
+        let connected = false;
+        let blocked = false;
+        let blockedType = ''; // 'ollama' or 'lmstudio'
+        const connectedProviders = [];
+
+        if (response.ollama) connectedProviders.push('Ollama');
+        if (response.lmstudio) connectedProviders.push('LMStudio');
+
+        if (activeProvider === 'ollama') {
+            connected = response.ollama;
+            blocked = response.ollama_blocked;
+            blockedType = 'ollama';
+        } else if (activeProvider === 'lmstudio') {
+            connected = response.lmstudio;
+            blocked = response.lmstudio_blocked;
+            blockedType = 'lmstudio';
+        } else {
+            // 'auto' mode with no specific model selected yet
+            connected = connectedProviders.length > 0;
+            if (!connected) {
+                blocked = response.ollama_blocked || response.lmstudio_blocked;
+                blockedType = response.ollama_blocked ? 'ollama' : 'lmstudio';
+            }
+        }
+
+        if (connected) {
             dot.className = 'status-dot connected';
-            els.statusText.textContent = providers.join(' + ');
-            els.statusIndicator.title = `Connected: ${providers.join(', ')}`;
+            els.statusText.textContent = connectedProviders.join(' + ');
+            els.statusIndicator.title = `Connected: ${connectedProviders.join(', ')}`;
+        } else if (blocked) {
+            dot.className = 'status-dot error';
+            els.statusText.textContent = 'CORS Blocked';
+            els.statusIndicator.title = blockedType === 'ollama'
+                ? 'Ollama is running but blocking the extension (CORS). Enable CORS in Ollama.'
+                : 'LMStudio is running but blocking the extension (CORS). Enable CORS in LMStudio Developer settings.';
         } else {
             dot.className = 'status-dot error';
             els.statusText.textContent = 'No provider';
@@ -419,14 +469,6 @@ function autoSelectModel(models) {
     return models[0];
 }
 
-function isTranslateGemmaModel(modelId) {
-    if (!modelId) return false;
-    const lower = modelId.toLowerCase();
-    return lower.includes('translategemma') ||
-        lower.includes('translate-gemma') ||
-        lower.includes('translate_gemma');
-}
-
 async function loadModels() {
     els.modelName.textContent = 'Loading...';
 
@@ -456,10 +498,8 @@ async function loadModels() {
             els.modelName.textContent = chosen.name || chosen.id;
             els.modelBadge.title = `Model: ${chosen.id} (${chosen.provider})`;
 
-            // Auto-set request format for TranslateGemma models
-            if (isTranslateGemmaModel(chosen.id)) {
-                currentSettings.requestFormat = 'translategemma';
-            }
+            // Request format is derived from the model automatically (requestFormat: 'auto')
+            // by the background script — no need to set it here.
 
             // Save the selected model to settings so background.js uses it
             currentSettings.selectedModel = chosen.id;
