@@ -28,6 +28,7 @@
   "background": {
     "scripts": [
       "languages.js",
+      "cache.js",
       "background.js"
     ],
     "service_worker": "background.js"

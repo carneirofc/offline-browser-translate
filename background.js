@@ -8,7 +8,7 @@ const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
 // Import languages (for Service Worker context)
 if (typeof importScripts === 'function') {
-    importScripts('languages.js');
+    importScripts('languages.js', 'cache.js');
 }
 
 // ============================================================================
@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS = {
     plainTextFallback: true, // After JSON retries fail, translate the failed items one-by-one as plain text
     showGlow: false,
     numCtx: 0,          // Ollama context window size (0 = model default)
+    cacheEnabled: true, // Reuse cached translations for identical source text (across pages)
     debug: false,       // Enable verbose logging
     floatingButton: false // Show floating translate button on text selection (requires <all_urls> permission)
 };
@@ -677,8 +678,52 @@ async function translate(textItems, targetLanguage, settings) {
         return good;
     };
 
-    const results = new Map();          // id -> final translated text
-    let pending = [...textItems];       // items still needing a good translation
+    const results = new Map();          // originalId -> final translated text
+
+    // ---- Cache + de-duplication --------------------------------------------
+    // Collapse duplicate source strings (very common on forums) so each unique
+    // text is translated at most once, and serve any text already cached from a
+    // previous batch/page/session without hitting the model. The cache key uses
+    // exactly the inputs that determine the prompt, so a hit is equivalent to a
+    // fresh translation. cache* helpers come from cache.js.
+    const cacheEnabled = settings.cacheEnabled !== false && typeof cacheGetMany === 'function';
+    const keyFor = (text) => cacheKey(modelId, sourceLangCode, targetLanguage, format, text);
+
+    // One representative id per unique source text; remember every id sharing it.
+    const repIdForKey = new Map();      // key -> representative originalId
+    const idsForRep = new Map();        // representative originalId -> [all ids]
+    const uniqueItems0 = [];            // one item per unique text, first-seen order
+    for (const item of textItems) {
+        const k = keyFor(item.text);
+        if (repIdForKey.has(k)) {
+            idsForRep.get(repIdForKey.get(k)).push(item.id);
+        } else {
+            repIdForKey.set(k, item.id);
+            idsForRep.set(item.id, [item.id]);
+            uniqueItems0.push(item);
+        }
+    }
+
+    // Serve cache hits up front; only unresolved uniques go to the model.
+    let uniqueItems = uniqueItems0;
+    let cacheHitCount = 0;
+    if (cacheEnabled) {
+        try {
+            const found = await cacheGetMany(uniqueItems0.map(it => keyFor(it.text)));
+            const misses = [];
+            for (const it of uniqueItems0) {
+                const cached = found.get(keyFor(it.text));
+                if (cached !== undefined) { results.set(it.id, cached); cacheHitCount++; }
+                else misses.push(it);
+            }
+            uniqueItems = misses;
+        } catch (e) {
+            debugWarn('[Background] cache read failed, translating all:', e && e.message);
+        }
+    }
+    debugLog(`[Background] cache: ${cacheHitCount} hit / ${uniqueItems.length} miss (${repIdForKey.size} unique of ${textItems.length} total)`);
+
+    let pending = [...uniqueItems];     // unique, uncached items still needing a translation
 
     // Attempt the batched request, retrying only the items that came back
     // missing or malformed. maxOutputRetries extra attempts after the first.
@@ -715,7 +760,22 @@ async function translate(textItems, targetLanguage, settings) {
                 debugWarn(`[Background] plain-text fallback failed for id ${item.id}:`, e.message);
             }
         }
-        pending = textItems.filter(item => !results.has(item.id));
+    }
+
+    // Persist freshly produced translations (only the misses we just translated).
+    if (cacheEnabled) {
+        const entries = [];
+        for (const it of uniqueItems) {
+            if (results.has(it.id)) entries.push([keyFor(it.text), results.get(it.id)]);
+        }
+        if (entries.length) cacheSetMany(entries).catch(e => debugWarn('[Background] cache write failed:', e && e.message));
+    }
+
+    // Fan each representative's translation out to its duplicate siblings.
+    for (const [repId, ids] of idsForRep) {
+        if (!results.has(repId)) continue;
+        const text = results.get(repId);
+        for (const id of ids) results.set(id, text);
     }
 
     // Build the final array in original order. Items that never succeeded are
@@ -813,6 +873,23 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         settingsWithSource
                     );
                     sendResponse({ translations });
+                    break;
+
+                case 'CLEAR_CACHE':
+                    try {
+                        await cacheClear();
+                        sendResponse({ ok: true });
+                    } catch (e) {
+                        sendResponse({ ok: false, error: e && e.message });
+                    }
+                    break;
+
+                case 'CACHE_COUNT':
+                    try {
+                        sendResponse({ count: await cacheCount() });
+                    } catch (e) {
+                        sendResponse({ count: 0, error: e && e.message });
+                    }
                     break;
 
                 default:

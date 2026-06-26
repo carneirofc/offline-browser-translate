@@ -23,7 +23,8 @@ const DEFAULT_SETTINGS = {
     useStructuredOutput: true,
     maxOutputRetries: 2,
     plainTextFallback: true,
-    showGlow: false  // Disabled by default
+    showGlow: false,  // Disabled by default
+    cacheEnabled: true
 };
 
 // Format descriptions
@@ -91,6 +92,9 @@ const elements = {
     useStructuredOutput: document.getElementById('useStructuredOutput'),
     plainTextFallback: document.getElementById('plainTextFallback'),
     showGlow: document.getElementById('showGlow'),
+    cacheEnabled: document.getElementById('cacheEnabled'),
+    clearCache: document.getElementById('clearCache'),
+    cacheCount: document.getElementById('cacheCount'),
     debugLogging: document.getElementById('debugLogging'),
     floatingButton: document.getElementById('floatingButton'),
     customPromptsSection: document.getElementById('customPromptsSection'),
@@ -169,6 +173,18 @@ async function init() {
     initPromptEditors(); // Initialize editors
     await loadModels();
     setupEventListeners();
+    refreshCacheCount();
+}
+
+// Show how many translations are currently cached.
+async function refreshCacheCount() {
+    if (!elements.cacheCount) return;
+    try {
+        const res = await browserAPI.runtime.sendMessage({ type: 'CACHE_COUNT' });
+        elements.cacheCount.textContent = (res && typeof res.count === 'number') ? res.count.toLocaleString() : '0';
+    } catch (e) {
+        elements.cacheCount.textContent = '0';
+    }
 }
 
 // Load available models from providers
@@ -268,6 +284,7 @@ function applySettingsToUI() {
     elements.useStructuredOutput.checked = currentSettings.useStructuredOutput;
     if (elements.plainTextFallback) elements.plainTextFallback.checked = currentSettings.plainTextFallback !== false;
     elements.showGlow.checked = currentSettings.showGlow !== false;
+    if (elements.cacheEnabled) elements.cacheEnabled.checked = currentSettings.cacheEnabled !== false;
     elements.debugLogging.checked = !!currentSettings.debug;
     elements.floatingButton.checked = !!currentSettings.floatingButton;
     elements.customSystem.value = currentSettings.customSystemPrompt || '';
@@ -351,6 +368,7 @@ async function saveCurrentSettings() {
         useStructuredOutput: elements.useStructuredOutput.checked,
         plainTextFallback: elements.plainTextFallback ? elements.plainTextFallback.checked : true,
         showGlow: elements.showGlow.checked,
+        cacheEnabled: elements.cacheEnabled ? elements.cacheEnabled.checked : true,
         debug: elements.debugLogging.checked,
         floatingButton: elements.floatingButton.checked,
         // Save custom prompts from the new prompt editor
@@ -436,6 +454,19 @@ function setupEventListeners() {
         await loadModels();
         showToast('Settings reset to defaults');
     });
+
+    // Clear translation cache
+    if (elements.clearCache) {
+        elements.clearCache.addEventListener('click', async () => {
+            try {
+                await browserAPI.runtime.sendMessage({ type: 'CLEAR_CACHE' });
+                await refreshCacheCount();
+                showToast('Translation cache cleared');
+            } catch (e) {
+                showToast('Failed to clear cache', 'error');
+            }
+        });
+    }
 
     // Copy LM Studio template
     elements.copyTemplate.addEventListener('click', () => {

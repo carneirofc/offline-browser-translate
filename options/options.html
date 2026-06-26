@@ -170,6 +170,21 @@
 
             </section>
 
+            <!-- Translation Cache -->
+            <section class="settings-section">
+                <h2>💾 Translation Cache</h2>
+
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="cacheEnabled" checked>
+                    <label for="cacheEnabled">Cache translations</label>
+                    <p class="hint">Reuse stored translations for identical source text — across pages and sessions. Repeated content (forum boilerplate, menus, usernames) is translated once and reused instantly. Keyed by model + language pair, so changing either gives fresh results.</p>
+                </div>
+
+                <div class="form-group">
+                    <button id="clearCache" class="secondary-btn">🗑️ Clear cache (<span id="cacheCount">…</span> entries)</button>
+                </div>
+            </section>
+
             <!-- Advanced Features -->
             <section class="settings-section">
                 <h2>🧪 Advanced Features</h2>
