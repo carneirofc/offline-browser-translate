@@ -550,9 +550,10 @@ function resetCacheStats() {
     cacheItemsTotal = 0;
 }
 
-// Build the "served from cache" line, or '' when nothing has been processed yet.
+// Build the "served from cache" line. Hidden until there's at least one hit, so
+// first visits (and runs with caching disabled) don't show a noisy "0%" line.
 function cacheStatsLine() {
-    if (cacheItemsTotal <= 0) return '';
+    if (cacheHitsTotal <= 0 || cacheItemsTotal <= 0) return '';
     const pct = Math.round((cacheHitsTotal / cacheItemsTotal) * 100);
     return `⚡ ${cacheHitsTotal}/${cacheItemsTotal} from cache (${pct}%)`;
 }
