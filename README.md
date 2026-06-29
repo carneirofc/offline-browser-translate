@@ -11,7 +11,7 @@ A privacy-focused browser extension that translates web pages using local LLMs (
 - 🔒 **100% Private** - All translations happen on your local machine via Ollama or LMStudio
 - 🎯 **Smart Prioritization** - Visible content and headings are translated first
 - 🌍 **Many Languages** - Supports many many languages :3
-- ⚡ **Translation Cache** - Identical text is translated once and reused (great for forums); stored locally, with a privacy-friendly default that clears when you close the browser
+- ⚡ **Translation Cache** - Optional: translate identical text once and reuse it (great for forums). Off by default; stored locally with a session-only or persistent mode
 
 ## Requirements
 
@@ -35,7 +35,7 @@ With a translation-capable model loaded (e.g. `TranslateGemma`, `tencent.hunyuan
 3. Click **Load unpacked**
 4. Select the extension folder
 
-**Coming Soon:** Extension in Chrome Web Store and Firefox Add-ons
+**Coming Soon:** Extension in Chrome Web Store
 
 ## Preview
 
@@ -64,7 +64,7 @@ This extension is designed to be privacy-focused:
 - ✅ No analytics or tracking
 - ✅ No data collection
 - ✅ Minimal permissions (only `localhost` host permissions)
-- ✅ The translation cache is stored **locally** in your browser (IndexedDB) and never leaves your machine; by default it clears when you close the browser, and it can be set to persist, turned off, or cleared at any time
+- ✅ The translation cache is **off by default**. When enabled it is stored **locally** (in memory, or IndexedDB for the persistent mode) and never leaves your machine; it can be set to clear on browser close, turned off, or cleared at any time
 
 ## Settings
 
@@ -78,17 +78,17 @@ Click **Advanced Settings** to configure:
 | Temperature | Model creativity (lower = more consistent) |
 | Request Format (*work in progress*) | Default JSON, Hunyuan-MT, Simple, or Custom |
 | Show Glow | Toggle visual indicator on translated text |
-| Cache translations | Reuse stored translations for identical text — *until browser close* (default), *across sessions*, or *off*; includes a "Clear cache" button |
+| Cache translations | Reuse stored translations for identical text — *off* (default), *until browser close*, or *across sessions*; includes a "Clear cache" button |
 
 ## Translation Cache
 
-To avoid re-translating the same text over and over (forum boilerplate, menus, usernames, repeated phrases), translations can be cached locally and reused — both later on the same page and across other pages.
+To avoid re-translating the same text over and over (forum boilerplate, menus, usernames, repeated phrases), translations can be cached locally and reused — both later on the same page and across other pages. It is **off by default**; enable it in Options or the popup's Advanced Settings.
 
 - **Modes (Options → Translation Cache):**
-  - **Until I close the browser** (default) — cache speeds things up while you browse, then is wiped on the next browser start. Nothing translation-related lingers on disk between sessions.
-  - **Keep across sessions** — cache persists on disk until you clear it. Best for repeatedly visiting the same sites.
-  - **Don't cache** — every segment is translated fresh.
-- **What's cached:** the translated output for each source text segment, stored in the browser's IndexedDB (local only — nothing is uploaded).
+  - **Don't cache** (default) — every segment is translated fresh.
+  - **Until I close the browser** — cache speeds things up while you browse, then is wiped on the next browser start. Kept in memory, so nothing translation-related lingers on disk between sessions. Works in every browser.
+  - **Keep across sessions** — cache persists on disk (IndexedDB) until you clear it. Best for repeatedly visiting the same sites. Hardened browsers that block IndexedDB (e.g. Mullvad/Tor-based Firefox) disable this option automatically and fall back to the in-memory session cache.
+- **What's cached:** the translated output for each source text segment, stored locally (in memory, or IndexedDB for the persistent mode) — nothing is uploaded.
 - **How it's keyed:** by the source text plus everything that determines the model's output — model, source & target language, request format, prompt template, structured-output mode, and temperature. Changing any of these yields fresh translations instead of stale cached ones, so the cache never serves output that wouldn't match your current settings.
 - **De-duplication:** within a single page, identical strings are translated only once and the result is reused for every occurrence (this happens regardless of cache mode).
 - **Clearing:** use **Clear cache** to wipe it at any time (the button shows the current entry count). The cache is capped (oldest entries are evicted first).

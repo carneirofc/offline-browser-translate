@@ -177,11 +177,12 @@
                 <div class="form-group">
                     <label for="cacheMode">Cache translations</label>
                     <select id="cacheMode">
+                        <option value="off">Don't cache</option>
                         <option value="session">Until I close the browser</option>
                         <option value="persistent">Keep across sessions</option>
-                        <option value="off">Don't cache</option>
                     </select>
-                    <p class="hint">Reuse stored translations for identical source text so repeated content (forum boilerplate, menus, usernames) is translated once and reused instantly. Entries are stored <strong>locally</strong> (IndexedDB, never uploaded) and keyed by the source text plus everything that changes the output: model, source &amp; target language, request format, prompt template, structured-output mode, and temperature. <strong>Until I close the browser</strong> wipes the cache on the next browser start; <strong>Keep across sessions</strong> retains it on disk until you clear it.</p>
+                    <p class="hint" id="cacheBackendWarning" hidden style="color: var(--yellow, #dbbc7f);">⚠️ This browser doesn't support keeping the cache across sessions.</p>
+                    <p class="hint">Reuse stored translations for identical text so repeated content (menus, usernames, boilerplate) isn't re-translated. Stored locally, never uploaded. <strong>Until I close the browser</strong> clears it on the next start; <strong>Keep across sessions</strong> keeps it until you clear it.</p>
                 </div>
 
                 <div class="form-group">

@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS = {
     plainTextFallback: true,
     showGlow: true,
     numCtx: 0,
+    cacheMode: 'off',
     debug: false,
     floatingButton: false
 };
@@ -63,28 +64,17 @@ const elements = {
     maxItems: document.getElementById('maxItems'),
     temperature: document.getElementById('temperature'),
     temperatureValue: document.getElementById('temperatureValue'),
-    requestFormat: document.getElementById('requestFormat'),
-    formatDescription: document.getElementById('formatDescription'),
-    useStructuredOutput: document.getElementById('useStructuredOutput'),
     showGlow: document.getElementById('showGlow'),
+    cacheMode: document.getElementById('cacheMode'),
+    cacheBackendWarning: document.getElementById('cacheBackendWarning'),
+    cacheNewBadge: document.getElementById('cacheNewBadge'),
+    clearCache: document.getElementById('clearCache'),
+    cacheCount: document.getElementById('cacheCount'),
     floatingButton: document.getElementById('floatingButton'),
-    customPrompts: document.getElementById('customPrompts'),
-    customSystem: document.getElementById('customSystem'),
-    customUser: document.getElementById('customUser'),
     saveSettings: document.getElementById('saveSettings'),
     openOptions: document.getElementById('openOptions'),
     resetSettings: document.getElementById('resetSettings'),
     toast: document.getElementById('toast')
-};
-
-// Format descriptions for each request format type
-const FORMAT_DESCRIPTIONS = {
-    auto: 'Picks the right format automatically based on the selected model.',
-    default: 'Standard JSON output format. Best for most models. Returns translations as a structured JSON array.',
-    translategemma: 'Specialized format for TranslateGemma models. Uses the exact prompt structure required by TranslateGemma. Auto-detects source language from the page.',
-    hunyuan: 'Format optimized for Hunyuan-MT models. Minimal prompt with no system message.',
-    simple: 'Simple line-by-line output. Good for smaller models that struggle with JSON formatting.',
-    custom: 'Use your own custom system and user prompts. Full control over the translation request.'
 };
 
 let currentSettings = { ...DEFAULT_SETTINGS };
@@ -181,10 +171,58 @@ async function init() {
     await loadSettings();
     applySettingsToUI();
     setupEventListeners();
+    refreshCacheCount();
+    refreshCacheBackend();
+    initCacheNewBadge();
     await checkProviders();
     await loadModels();
     await checkTranslationStatus();
     await detectPageLanguage();
+}
+
+// Show a small "New" badge on the cache control until the user opens the
+// Advanced Settings (where it lives) for the first time.
+const CACHE_BADGE_SEEN_KEY = 'cacheBadgeSeen';
+function initCacheNewBadge() {
+    if (!elements.cacheNewBadge) return;
+    let seen = false;
+    try { seen = localStorage.getItem(CACHE_BADGE_SEEN_KEY) === '1'; } catch (e) { /* ignore */ }
+    elements.cacheNewBadge.hidden = seen;
+}
+function markCacheBadgeSeen() {
+    // Persist that the user has now opened Advanced Settings, but keep the badge
+    // visible for the rest of this session so they actually notice it. It won't
+    // show again the next time the popup is opened.
+    try { localStorage.setItem(CACHE_BADGE_SEEN_KEY, '1'); } catch (e) { /* ignore */ }
+}
+
+// Show how many translations are currently cached on the Clear-cache button.
+async function refreshCacheCount() {
+    if (!elements.cacheCount) return;
+    try {
+        const res = await browserAPI.runtime.sendMessage({ type: 'CACHE_COUNT' });
+        elements.cacheCount.textContent = (res && typeof res.count === 'number') ? res.count.toLocaleString() : '0';
+    } catch (e) {
+        elements.cacheCount.textContent = '0';
+    }
+}
+
+// Grey out "Keep across sessions" when the browser blocks IndexedDB (e.g. Mullvad),
+// since persistence can't work there; the in-memory session cache still does.
+async function refreshCacheBackend() {
+    if (!elements.cacheMode) return;
+    let persistent = true;
+    try {
+        const res = await browserAPI.runtime.sendMessage({ type: 'CACHE_BACKEND' });
+        persistent = !(res && res.persistent === false);
+    } catch (e) { /* assume available on error */ }
+
+    const opt = elements.cacheMode.querySelector('option[value="persistent"]');
+    if (opt) opt.disabled = !persistent;
+    if (elements.cacheBackendWarning) elements.cacheBackendWarning.hidden = persistent;
+    if (!persistent && elements.cacheMode.value === 'persistent') {
+        elements.cacheMode.value = 'session';
+    }
 }
 
 // ============================================================================
@@ -475,7 +513,6 @@ modelPicker.setModels = function (models) {
 function initModelPicker() {
     modelPicker.onChange = (id) => {
         currentSettings.selectedModel = id;
-        updateFormatUI();
         saveCurrentSettings();
     };
     modelPicker.onPinnedChange = (pinned) => {
@@ -541,48 +578,14 @@ function applySettingsToUI() {
     elements.maxItems.value = currentSettings.maxItemsPerBatch || 8;
     elements.temperature.value = currentSettings.temperature;
     elements.temperatureValue.textContent = currentSettings.temperature;
-    elements.requestFormat.value = currentSettings.requestFormat;
-    elements.useStructuredOutput.checked = currentSettings.useStructuredOutput;
     elements.showGlow.checked = currentSettings.showGlow !== false;
+    if (elements.cacheMode) elements.cacheMode.value = currentSettings.cacheMode || 'off';
     if (elements.floatingButton) elements.floatingButton.checked = !!currentSettings.floatingButton;
-    elements.customSystem.value = currentSettings.customSystemPrompt || '';
-    elements.customUser.value = currentSettings.customUserPromptTemplate || '';
 
     // Restore source language override
     if (elements.sourceLangOverride && currentSettings.sourceLanguage) {
         elements.sourceLangOverride.value = currentSettings.sourceLanguage;
     }
-
-    // Refresh format-dependent UI
-    updateFormatUI();
-}
-
-// The effective format = the explicit choice, or (for 'auto') the one detected
-// from the selected model. detectRequestFormat/PLAIN_TEXT_FORMATS come from languages.js.
-function getEffectiveFormat() {
-    return resolveRequestFormat(
-        { requestFormat: elements.requestFormat.value },
-        modelPicker.getValue()
-    );
-}
-
-// Refresh format-dependent UI. Non-mutating: it never silently rewrites the
-// user's format choice — 'auto' resolves at translation time in the background.
-function updateFormatUI() {
-    const fmt = elements.requestFormat.value;
-    const effective = getEffectiveFormat();
-
-    let desc = FORMAT_DESCRIPTIONS[fmt] || '';
-    if (fmt === 'auto' && modelPicker.getValue()) {
-        desc += ` Detected for this model: ${effective}.`;
-    }
-    if (elements.formatDescription) elements.formatDescription.textContent = desc;
-
-    // Structured JSON output is meaningless for plain-text formats; grey it out.
-    // (The background already ignores it for those, so we don't touch its value.)
-    elements.useStructuredOutput.disabled = PLAIN_TEXT_FORMATS.has(effective);
-
-    elements.customPrompts.hidden = fmt !== 'custom';
 }
 
 // Check which providers are available
@@ -780,9 +783,6 @@ async function loadModels(forceRefresh = false) {
         elements.modelTrigger.disabled = false;
         elements.translateBtn.disabled = false;
 
-        // Refresh the "Auto → detected format" hint for the selected model
-        updateFormatUI();
-
     } catch (e) {
         console.error('Failed to load models:', e);
         elements.modelTriggerLabel.textContent = 'Error loading models';
@@ -804,19 +804,28 @@ async function saveCurrentSettings() {
         maxTokensPerBatch: parseInt(elements.maxTokens.value) || 2000,
         maxItemsPerBatch: parseInt(elements.maxItems.value) || 8,
         temperature: parseFloat(elements.temperature.value) || 0.3,
-        requestFormat: elements.requestFormat.value,
-        useStructuredOutput: elements.useStructuredOutput.checked,
         showGlow: elements.showGlow.checked,
+        cacheMode: elements.cacheMode ? elements.cacheMode.value : 'off',
         // Save the source language override preference
-        sourceLanguage: elements.sourceLangOverride ? elements.sourceLangOverride.value : 'auto',
-        customSystemPrompt: elements.customSystem.value,
-        customUserPromptTemplate: elements.customUser.value
+        sourceLanguage: elements.sourceLangOverride ? elements.sourceLangOverride.value : 'auto'
+        // Request format, structured-output and custom prompts are managed in
+        // the full Settings page; we omit them here so the background merge keeps
+        // whatever was configured there.
     };
 
     await browserAPI.runtime.sendMessage({
         type: 'SAVE_SETTINGS',
         settings: currentSettings
     });
+}
+
+// Reset the translate button back to its idle state
+function resetTranslateButton() {
+    isTranslating = false;
+    elements.translateBtn.disabled = false;
+    elements.translateBtn.querySelector('.btn-text').hidden = false;
+    elements.translateBtn.querySelector('.btn-loading').hidden = true;
+    elements.cancelBtn.hidden = true;
 }
 
 // Start translation
@@ -913,11 +922,7 @@ async function startTranslation() {
         showToast(`Error: ${e.message}`, 'error');
 
         // Only reset UI on error
-        isTranslating = false;
-        elements.translateBtn.disabled = false;
-        elements.translateBtn.querySelector('.btn-text').hidden = false;
-        elements.translateBtn.querySelector('.btn-loading').hidden = true;
-        elements.cancelBtn.hidden = true;
+        resetTranslateButton();
     }
 }
 
@@ -932,11 +937,7 @@ async function cancelTranslation() {
         console.error('Cancel error:', e);
     }
 
-    isTranslating = false;
-    elements.translateBtn.disabled = false;
-    elements.translateBtn.querySelector('.btn-text').hidden = false;
-    elements.translateBtn.querySelector('.btn-loading').hidden = true;
-    elements.cancelBtn.hidden = true;
+    resetTranslateButton();
 }
 
 // Toggle translation on/off (uses cached translations if available)
@@ -958,6 +959,15 @@ async function toggleTranslation() {
 
 // Setup event listeners
 function setupEventListeners() {
+    // Reset the button when the content script signals it's done (e.g. a
+    // cache-only run that finishes near-instantly with no progress updates).
+    browserAPI.runtime.onMessage.addListener((message) => {
+        if (message && message.type === 'TRANSLATION_COMPLETE') {
+            resetTranslateButton();
+            refreshCacheCount();
+        }
+    });
+
     // Translate button
     elements.translateBtn.addEventListener('click', startTranslation);
 
@@ -978,6 +988,8 @@ function setupEventListeners() {
         const isHidden = elements.advancedSection.hidden;
         elements.advancedSection.hidden = !isHidden;
         elements.toggleAdvanced.classList.toggle('active', !isHidden);
+        // Opening Advanced Settings counts as "seeing" the new cache option.
+        if (isHidden) markCacheBadgeSeen();
     });
 
     // Floating button toggle — permission required to enable
@@ -1005,12 +1017,6 @@ function setupEventListeners() {
     // Temperature slider
     elements.temperature.addEventListener('input', (e) => {
         elements.temperatureValue.textContent = e.target.value;
-    });
-
-    // Request format change
-    elements.requestFormat.addEventListener('change', (e) => {
-        currentSettings.requestFormat = e.target.value;
-        updateFormatUI();
     });
 
     // Save settings button
@@ -1052,29 +1058,6 @@ function setupEventListeners() {
         }
     });
 
-    // Variable helpers
-    document.querySelectorAll('.var-tag').forEach(tag => {
-        tag.addEventListener('click', () => {
-            const targetId = tag.dataset.target;
-            const textToInsert = tag.dataset.insert;
-            const textarea = document.getElementById(targetId);
-
-            if (textarea) {
-                const start = textarea.selectionStart;
-                const end = textarea.selectionEnd;
-                const text = textarea.value;
-                const before = text.substring(0, start);
-                const after = text.substring(end, text.length);
-
-                textarea.value = before + textToInsert + after;
-                textarea.selectionStart = textarea.selectionEnd = start + textToInsert.length;
-                textarea.focus();
-
-                // Trigger change to update settings
-                textarea.dispatchEvent(new Event('change'));
-            }
-        });
-    });
 
     // Open options page
     if (elements.openOptions) {
@@ -1101,6 +1084,20 @@ function setupEventListeners() {
             });
             applySettingsToUI();
             showToast('Settings reset to defaults');
+        });
+    }
+
+    // Clear the translation cache
+    if (elements.clearCache) {
+        elements.clearCache.addEventListener('click', async (e) => {
+            e.preventDefault();
+            try {
+                await browserAPI.runtime.sendMessage({ type: 'CLEAR_CACHE' });
+                await refreshCacheCount();
+                showToast('Translation cache cleared');
+            } catch (err) {
+                showToast('Failed to clear cache', 'error');
+            }
         });
     }
 }

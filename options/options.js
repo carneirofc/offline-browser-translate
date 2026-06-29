@@ -24,7 +24,7 @@ const DEFAULT_SETTINGS = {
     maxOutputRetries: 2,
     plainTextFallback: true,
     showGlow: false,  // Disabled by default
-    cacheMode: 'session'
+    cacheMode: 'off'
 };
 
 // Format descriptions
@@ -93,6 +93,7 @@ const elements = {
     plainTextFallback: document.getElementById('plainTextFallback'),
     showGlow: document.getElementById('showGlow'),
     cacheMode: document.getElementById('cacheMode'),
+    cacheBackendWarning: document.getElementById('cacheBackendWarning'),
     clearCache: document.getElementById('clearCache'),
     cacheCount: document.getElementById('cacheCount'),
     debugLogging: document.getElementById('debugLogging'),
@@ -174,6 +175,33 @@ async function init() {
     await loadModels();
     setupEventListeners();
     refreshCacheCount();
+    refreshCacheBackend();
+
+    // The options page opens in a persistent tab, so init() only runs once. Refresh
+    // the cached-entry count whenever the tab is re-focused (e.g. after translating
+    // a page in another tab) so it doesn't show a stale value.
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) refreshCacheCount();
+    });
+}
+
+// Grey out "Keep across sessions" when the browser blocks IndexedDB (e.g. hardened
+// Firefox forks like Mullvad/Tor), since persistence can't work there.
+async function refreshCacheBackend() {
+    if (!elements.cacheMode) return;
+    let persistent = true;
+    try {
+        const res = await browserAPI.runtime.sendMessage({ type: 'CACHE_BACKEND' });
+        persistent = !(res && res.persistent === false);
+    } catch (e) { /* assume available on error */ }
+
+    const opt = elements.cacheMode.querySelector('option[value="persistent"]');
+    if (opt) opt.disabled = !persistent;
+    if (elements.cacheBackendWarning) elements.cacheBackendWarning.hidden = persistent;
+    // If persistence isn't available but it was the saved choice, fall back to session.
+    if (!persistent && elements.cacheMode.value === 'persistent') {
+        elements.cacheMode.value = 'session';
+    }
 }
 
 // Show how many translations are currently cached.
@@ -284,7 +312,7 @@ function applySettingsToUI() {
     elements.useStructuredOutput.checked = currentSettings.useStructuredOutput;
     if (elements.plainTextFallback) elements.plainTextFallback.checked = currentSettings.plainTextFallback !== false;
     elements.showGlow.checked = currentSettings.showGlow !== false;
-    if (elements.cacheMode) elements.cacheMode.value = currentSettings.cacheMode || 'session';
+    if (elements.cacheMode) elements.cacheMode.value = currentSettings.cacheMode || 'off';
     elements.debugLogging.checked = !!currentSettings.debug;
     elements.floatingButton.checked = !!currentSettings.floatingButton;
     elements.customSystem.value = currentSettings.customSystemPrompt || '';
@@ -368,7 +396,7 @@ async function saveCurrentSettings() {
         useStructuredOutput: elements.useStructuredOutput.checked,
         plainTextFallback: elements.plainTextFallback ? elements.plainTextFallback.checked : true,
         showGlow: elements.showGlow.checked,
-        cacheMode: elements.cacheMode ? elements.cacheMode.value : 'session',
+        cacheMode: elements.cacheMode ? elements.cacheMode.value : 'off',
         debug: elements.debugLogging.checked,
         floatingButton: elements.floatingButton.checked,
         // Save custom prompts from the new prompt editor

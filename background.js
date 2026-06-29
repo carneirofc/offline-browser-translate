@@ -36,8 +36,8 @@ const DEFAULT_SETTINGS = {
     showGlow: false,
     numCtx: 0,          // Ollama context window size (0 = model default)
     // Translation cache: 'persistent' (kept across browser sessions), 'session'
-    // (kept until the browser is closed, then wiped), or 'off'.
-    cacheMode: 'session',
+    // (kept until the browser is closed, then wiped), or 'off'. Off by default.
+    cacheMode: 'off',
     debug: false,       // Enable verbose logging
     floatingButton: false // Show floating translate button on text selection (requires <all_urls> permission)
 };
@@ -726,6 +726,7 @@ async function translate(textItems, targetLanguage, settings) {
 
     // Serve cache hits up front; only unresolved groups go to the model.
     let cacheHitCount = 0;      // unique source strings served from cache
+    let fromCacheItems = 0;     // text elements served from cache (incl. duplicates)
     let missGroups;
     if (cacheEnabled) {
         try {
@@ -736,6 +737,7 @@ async function translate(textItems, targetLanguage, settings) {
                 if (cached !== undefined) {
                     results.set(g.item.id, cached);
                     cacheHitCount++;
+                    fromCacheItems += g.ids.length;
                 } else {
                     missGroups.push(g);
                 }
@@ -810,9 +812,10 @@ async function translate(textItems, targetLanguage, settings) {
 
     // Build the final array in original order. Items that never succeeded are
     // returned with an error so the content script keeps their original text.
-    return textItems.map(item => results.has(item.id)
+    const translations = textItems.map(item => results.has(item.id)
         ? { id: item.id, text: results.get(item.id) }
         : { id: item.id, error: 'translation failed' });
+    return { translations, fromCache: fromCacheItems, total: textItems.length, cacheActive: cacheEnabled };
 }
 
 // ============================================================================
@@ -897,12 +900,17 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         };
                     }
 
-                    const translations = await translate(
+                    const result = await translate(
                         message.texts,
                         message.targetLanguage,
                         settingsWithSource
                     );
-                    sendResponse({ translations });
+                    sendResponse({
+                        translations: result.translations,
+                        fromCache: result.fromCache,
+                        total: result.total,
+                        cacheActive: result.cacheActive
+                    });
                     break;
 
                 case 'CLEAR_CACHE':
@@ -919,6 +927,14 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         sendResponse({ count: await cacheCount() });
                     } catch (e) {
                         sendResponse({ count: 0, error: e && e.message });
+                    }
+                    break;
+
+                case 'CACHE_BACKEND':
+                    try {
+                        sendResponse({ persistent: await cachePersistentAvailable() });
+                    } catch (e) {
+                        sendResponse({ persistent: false, error: e && e.message });
                     }
                     break;
 

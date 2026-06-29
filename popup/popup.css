@@ -858,3 +858,19 @@ textarea.highlight-vars {
   opacity: 1;
   color: var(--accent);
 }
+
+/* "New" badge for recently added settings */
+.new-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--bg-dim);
+  background: var(--accent);
+  border-radius: 999px;
+  vertical-align: middle;
+}
