@@ -122,8 +122,42 @@ function isTranslatableText(text) {
  */
 function splitIntoSentences(text) {
     if (!text) return [];
-    const regex = /[^.!?。？！]+(?:[.!?]+(?:\s+|$)|[。？！]+|$)|[.!?。？！\s]+/gu;
-    return text.match(regex) || [text];
+    const segments = [];
+    let current = '';
+
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        current += ch;
+
+        if ('。？！'.includes(ch)) {
+            segments.push(current);
+            current = '';
+            continue;
+        }
+
+        if (!'.!?'.includes(ch)) continue;
+
+        const prev = text[i - 1] || '';
+        const next = text[i + 1] || '';
+        if (ch === '.' && /\d/.test(prev) && /\d/.test(next)) {
+            continue;
+        }
+
+        while (i + 1 < text.length && '.!?'.includes(text[i + 1])) {
+            current += text[++i];
+        }
+
+        if (i + 1 >= text.length || /\s/.test(text[i + 1])) {
+            while (i + 1 < text.length && /\s/.test(text[i + 1])) {
+                current += text[++i];
+            }
+            segments.push(current);
+            current = '';
+        }
+    }
+
+    if (current) segments.push(current);
+    return segments.length > 0 ? segments : [text];
 }
 
 /**
