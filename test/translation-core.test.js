@@ -150,6 +150,29 @@ test('groupTextNodesIntoBatches respects the token budget', () => {
     assert.equal(batches.length, 2);
 });
 
+test('parseTranslationResponse strips ```json code fences (LM Studio/llama.cpp)', () => {
+    const raw = '```json\n{"translations":[{"id":0,"text":"Hola"},{"id":1,"text":"Adiós"}]}\n```';
+    const out = parseTranslationResponse(raw, [{ id: 'x' }, { id: 'y' }]);
+    assert.deepEqual(out.map(t => t.text), ['Hola', 'Adiós']);
+    assert.deepEqual(out.map(t => t.id), ['x', 'y']);
+});
+
+test('parseTranslationResponse accepts a bare JSON array', () => {
+    const out = parseTranslationResponse('[{"id":0,"text":"Bonjour"}]', [{ id: 99 }]);
+    assert.equal(out[0].id, 99);
+    assert.equal(out[0].text, 'Bonjour');
+});
+
+test('parseTranslationResponse preserves matching original (non-sequential) ids', () => {
+    const out = parseTranslationResponse(
+        '{"translations":[{"id":11,"text":"B"},{"id":10,"text":"A"}]}',
+        [{ id: 10 }, { id: 11 }]
+    );
+    const byId = Object.fromEntries(out.map(t => [t.id, t.text]));
+    assert.equal(byId[10], 'A');
+    assert.equal(byId[11], 'B');
+});
+
 test('buildPrompt substitutes all occurrences', () => {
     assert.equal(
         buildPrompt('from {{src}} to {{tgt}} ({{tgt}})', { src: 'Japanese', tgt: 'English' }),
