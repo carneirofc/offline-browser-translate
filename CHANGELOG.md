@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0]
+
 ### Added
 - **Describe & interpret images**: a new right-click context-menu item on images
   sends the picture to a vision-capable local model and shows the result in an
@@ -55,6 +57,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Normalized the "LM Studio" product name across all UI strings (previously
   spelled "LMStudio" in the popup and translator).
 - Rewrote the extension description for clarity.
+- **Native look** across all three surfaces (popup, options, translator): a
+  shared `native.css` renders native OS controls that follow the light/dark
+  preference automatically via CSS `color-scheme` and system-colour keywords
+  (`AccentColor`, `ButtonFace`, `Canvas`, `Field`, …). The custom Everforest
+  colour palette and the translator's manual light/dark theme toggle are gone —
+  theming is now automatic with no toggle and no stored theme.
+- **Slimmed the toolbar popup** to the essentials: model / target-language /
+  source-language pickers, translate / cancel / restore, and quick toggles for
+  the floating button and glow effect. Provider, server URLs, batch sizes,
+  temperature, and cache controls now live only on the options page. A popup
+  save no longer rebuilds the whole settings object, so those options-page
+  values are preserved instead of being reset.
+
+### Removed
+- The popup's broken drag-to-resize grip (and its persisted size).
+
+### Fixed
+- Translator source/target panels no longer desync: the source textarea is no
+  longer independently resizable, so both panels stay equal height.
 
 ## [1.7.0]
 
@@ -97,6 +118,7 @@ support, context-menu translation, parallel LLM requests, and the privacy-focuse
 architecture — is credited to the upstream project by
 [Eldoprano](https://github.com/Eldoprano/offline-browser-translate).
 
-[Unreleased]: https://github.com/carneirofc/offline-browser-translate/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/carneirofc/offline-browser-translate/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/carneirofc/offline-browser-translate/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/carneirofc/offline-browser-translate/releases/tag/v1.7.0
 [1.6.3]: https://github.com/carneirofc/offline-browser-translate/releases/tag/v1.6.3
