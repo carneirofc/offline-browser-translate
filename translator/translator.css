@@ -1,154 +1,17 @@
-/* Local LLM Translator Page — Everforest Theme (Dark & Light) */
+/*
+ * Translator page layout. The native look and shared primitives (status dot,
+ * spinner, toast) come from ../native.css, linked first. Light/dark comes for
+ * free from color-scheme — there is no palette, no [data-theme], no toggle.
+ * This file keeps layout only, plus the custom language selector recoloured
+ * with system colours.
+ */
 
-/* ============================================================
-   THEME VARIABLES
-   ============================================================ */
-
-:root {
-    /* Everforest Dark Medium (default) */
-    --bg-dim: #1E2326;
-    --bg0: #272E33;
-    --bg1: #2E383C;
-    --bg2: #374145;
-    --bg3: #414B50;
-    --bg4: #495156;
-    --bg5: #4F5B58;
-
-    --fg: #D3C6AA;
-    --red: #E67E80;
-    --orange: #E69875;
-    --yellow: #DBBC7F;
-    --green: #A7C080;
-    --aqua: #83C092;
-    --blue: #7FBBB3;
-    --purple: #D699B6;
-    --grey0: #7A8478;
-    --grey1: #859289;
-    --grey2: #9DA9A0;
-
-    /* Semantic */
-    --bg-primary: var(--bg-dim);
-    --bg-secondary: var(--bg0);
-    --bg-tertiary: var(--bg1);
-    --bg-elevated: var(--bg2);
-    --bg-hover: var(--bg3);
-    --text-primary: var(--fg);
-    --text-secondary: var(--grey1);
-    --text-muted: var(--grey0);
-    --accent: var(--green);
-    --accent-hover: var(--aqua);
-    --accent-glow: rgba(167, 192, 128, 0.25);
-    --success: var(--green);
-    --warning: var(--yellow);
-    --error: var(--red);
-
-    --border-color: var(--bg-tertiary);
-    --border-radius: 12px;
-    --border-radius-sm: 8px;
-    --transition: all 0.2s ease;
-    --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-/* Everforest Light */
-[data-theme="light"] {
-    --bg-dim: #F3EAD3;
-    --bg0: #FDF6E3;
-    --bg1: #F4F0D9;
-    --bg2: #EFEBD4;
-    --bg3: #E6E2CC;
-    --bg4: #E0DCC7;
-    --bg5: #BDC3AF;
-
-    --fg: #5C6A72;
-    --red: #F85552;
-    --orange: #F57D26;
-    --yellow: #DFA000;
-    --green: #8DA101;
-    --aqua: #35A77C;
-    --blue: #3A94C5;
-    --purple: #DF69BA;
-    --grey0: #A6B0A0;
-    --grey1: #939F91;
-    --grey2: #829181;
-
-    --bg-primary: var(--bg0);
-    --bg-secondary: var(--bg1);
-    --bg-tertiary: var(--bg2);
-    --bg-elevated: var(--bg3);
-    --bg-hover: var(--bg4);
-    --text-primary: var(--fg);
-    --text-secondary: var(--grey2);
-    --text-muted: var(--grey1);
-    --accent: var(--green);
-    --accent-hover: var(--aqua);
-    --accent-glow: rgba(141, 161, 1, 0.2);
-
-    --border-color: var(--bg3);
-    --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-/* System preference detection — applies light if user hasn't toggled manually */
-@media (prefers-color-scheme: light) {
-    :root:not([data-theme]) {
-        --bg-dim: #F3EAD3;
-        --bg0: #FDF6E3;
-        --bg1: #F4F0D9;
-        --bg2: #EFEBD4;
-        --bg3: #E6E2CC;
-        --bg4: #E0DCC7;
-        --bg5: #BDC3AF;
-
-        --fg: #5C6A72;
-        --red: #F85552;
-        --orange: #F57D26;
-        --yellow: #DFA000;
-        --green: #8DA101;
-        --aqua: #35A77C;
-        --blue: #3A94C5;
-        --purple: #DF69BA;
-        --grey0: #A6B0A0;
-        --grey1: #939F91;
-        --grey2: #829181;
-
-        --bg-primary: var(--bg0);
-        --bg-secondary: var(--bg1);
-        --bg-tertiary: var(--bg2);
-        --bg-elevated: var(--bg3);
-        --bg-hover: var(--bg4);
-        --text-primary: var(--fg);
-        --text-secondary: var(--grey2);
-        --text-muted: var(--grey1);
-        --accent: var(--green);
-        --accent-hover: var(--aqua);
-        --accent-glow: rgba(141, 161, 1, 0.2);
-
-        --border-color: var(--bg3);
-        --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
-    }
-}
-
-/* ============================================================
-   BASE & RESET
-   ============================================================ */
-
+/* Reset the UA margins/padding the layout assumes away (native.css: box-sizing). */
 *,
 *::before,
 *::after {
     margin: 0;
     padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    min-height: 100vh;
-    line-height: 1.6;
-    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ============================================================
@@ -173,7 +36,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid ButtonBorder;
     margin-bottom: 2rem;
 }
 
@@ -186,19 +49,19 @@ body {
 .header-icon {
     width: 40px;
     height: 40px;
-    border-radius: var(--border-radius-sm);
+    border-radius: var(--radius-sm);
 }
 
 .header h1 {
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--accent);
+    color: AccentColor;
     line-height: 1.2;
 }
 
 .header-subtitle {
     font-size: 0.85rem;
-    color: var(--text-muted);
+    color: GrayText;
 }
 
 .header-right {
@@ -207,59 +70,35 @@ body {
     gap: 1rem;
 }
 
-/* Status Indicator */
+/* Status indicator — the dot itself is styled by native.css. */
 .status-indicator {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     padding: 0.4rem 0.8rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
+    background: Field;
+    border: 1px solid ButtonBorder;
     border-radius: 20px;
     font-size: 0.8rem;
-    color: var(--text-secondary);
+    color: GrayText;
     cursor: help;
 }
 
-.status-dot {
+/* The header status dot is a touch smaller than the shared default. */
+.status-indicator .status-dot {
     width: 8px;
     height: 8px;
-    border-radius: 50%;
-    background: var(--yellow);
-    animation: pulse 1.5s infinite;
     flex-shrink: 0;
 }
 
-.status-dot.connected {
-    background: var(--green);
-    animation: none;
-}
-
-.status-dot.error {
-    background: var(--red);
-    animation: none;
-}
-
-@keyframes pulse {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.4;
-    }
-}
-
-/* Model Badge */
+/* Model badge */
 .model-badge {
     padding: 0.4rem 0.8rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
+    background: Field;
+    border: 1px solid ButtonBorder;
     border-radius: 20px;
     font-size: 0.78rem;
-    color: var(--text-secondary);
+    color: GrayText;
     max-width: 220px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -268,28 +107,6 @@ body {
 
 .model-name {
     font-family: monospace;
-}
-
-/* Theme Toggle */
-.theme-toggle {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    font-size: 1.2rem;
-    cursor: pointer;
-    transition: var(--transition);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.theme-toggle:hover {
-    background: var(--bg-elevated);
-    border-color: var(--accent);
-    transform: rotate(15deg);
 }
 
 /* ============================================================
@@ -315,9 +132,9 @@ body {
    ============================================================ */
 
 .panel {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    background: Field;
+    border: 1px solid ButtonBorder;
+    border-radius: 12px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -325,14 +142,14 @@ body {
 }
 
 .panel:focus-within {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-glow);
+    border-color: AccentColor;
+    box-shadow: 0 0 0 3px color-mix(in srgb, AccentColor 30%, transparent);
 }
 
 .panel-header {
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-tertiary);
+    border-bottom: 1px solid ButtonBorder;
+    background: ButtonFace;
 }
 
 .panel-body {
@@ -347,12 +164,14 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 0.5rem 1rem;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid ButtonBorder;
     font-size: 0.8rem;
-    color: var(--text-muted);
+    color: GrayText;
 }
 
-/* Source Textarea */
+/* Source textarea — non-resizable so it can't desync from the target panel;
+   both panels fill the equal-height grid row (align-items: stretch above) down
+   to this min-height floor. */
 .source-textarea {
     width: 100%;
     flex: 1;
@@ -360,19 +179,19 @@ body {
     padding: 1rem;
     border: none;
     background: transparent;
-    color: var(--text-primary);
+    color: FieldText;
     font-family: inherit;
     font-size: 1rem;
     line-height: 1.7;
-    resize: vertical;
+    resize: none;
     outline: none;
 }
 
 .source-textarea::placeholder {
-    color: var(--text-muted);
+    color: GrayText;
 }
 
-/* Target Output */
+/* Target output */
 .target-output {
     flex: 1;
     min-height: 220px;
@@ -386,47 +205,43 @@ body {
 }
 
 .target-output .placeholder-text {
-    color: var(--text-muted);
+    color: GrayText;
     font-style: italic;
 }
 
 .target-output .translated-text {
-    color: var(--text-primary);
+    color: FieldText;
 }
 
-/* Clear Button */
+/* Clear button */
 .clear-btn {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: GrayText;
     font-size: 1.1rem;
     cursor: pointer;
     padding: 0.2rem 0.4rem;
     border-radius: 4px;
-    transition: var(--transition);
 }
 
 .clear-btn:hover {
-    color: var(--red);
-    background: rgba(230, 126, 128, 0.1);
+    color: var(--danger);
 }
 
-/* Copy Button */
+/* Copy button */
 .copy-btn {
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
+    background: ButtonFace;
+    border: 1px solid ButtonBorder;
+    color: ButtonText;
     padding: 0.3rem 0.8rem;
-    border-radius: var(--border-radius-sm);
+    border-radius: var(--radius-sm);
     font-size: 0.8rem;
     cursor: pointer;
-    transition: var(--transition);
 }
 
 .copy-btn:hover {
-    background: var(--accent);
-    color: var(--bg-primary);
-    border-color: var(--accent);
+    filter: brightness(1.08);
+    border-color: AccentColor;
 }
 
 /* ============================================================
@@ -444,20 +259,19 @@ body {
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    border: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-    color: var(--text-primary);
+    border: 1px solid ButtonBorder;
+    background: Field;
+    color: CanvasText;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: var(--transition);
+    transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
 .swap-btn:hover {
-    background: var(--accent);
-    color: var(--bg-primary);
-    border-color: var(--accent);
+    border-color: AccentColor;
+    color: AccentColor;
     transform: rotate(180deg);
 }
 
@@ -467,7 +281,7 @@ body {
 }
 
 /* ============================================================
-   LANGUAGE SELECTOR
+   LANGUAGE SELECTOR (custom search + pinned chips, native colours)
    ============================================================ */
 
 .lang-selector {
@@ -479,25 +293,24 @@ body {
     align-items: center;
     gap: 0.5rem;
     padding: 0.4rem 0.75rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-sm);
-    color: var(--text-primary);
+    background: Field;
+    border: 1px solid ButtonBorder;
+    border-radius: var(--radius-sm);
+    color: FieldText;
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
-    transition: var(--transition);
     min-width: 140px;
 }
 
 .lang-selector-btn:hover {
-    border-color: var(--accent);
+    border-color: AccentColor;
 }
 
 .lang-arrow {
     margin-left: auto;
     font-size: 0.8rem;
-    color: var(--text-muted);
+    color: GrayText;
     transition: transform 0.2s ease;
 }
 
@@ -512,10 +325,10 @@ body {
     left: 0;
     width: 300px;
     max-height: 400px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    box-shadow: var(--shadow);
+    background: Canvas;
+    border: 1px solid ButtonBorder;
+    border-radius: var(--radius);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
     z-index: 100;
     display: none;
     flex-direction: column;
@@ -542,31 +355,17 @@ body {
 /* Search */
 .lang-search-wrapper {
     padding: 0.75rem;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid ButtonBorder;
 }
 
 .lang-search {
     width: 100%;
     padding: 0.5rem 0.75rem;
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-sm);
-    background: var(--bg-primary);
-    color: var(--text-primary);
+    border-radius: var(--radius-sm);
     font-size: 0.9rem;
-    outline: none;
-    transition: border-color 0.2s;
 }
 
-.lang-search:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent-glow);
-}
-
-.lang-search::placeholder {
-    color: var(--text-muted);
-}
-
-/* Pinned Languages */
+/* Pinned languages */
 .lang-pinned {
     display: flex;
     flex-wrap: wrap;
@@ -577,35 +376,33 @@ body {
 .lang-chip {
     padding: 0.3rem 0.7rem;
     border-radius: 20px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
+    border: 1px solid ButtonBorder;
+    background: ButtonFace;
+    color: ButtonText;
     font-size: 0.82rem;
     cursor: pointer;
-    transition: var(--transition);
     white-space: nowrap;
 }
 
 .lang-chip:hover {
-    border-color: var(--accent);
-    background: var(--bg-hover);
+    border-color: AccentColor;
 }
 
 .lang-chip.active {
-    background: var(--accent);
-    color: var(--bg-primary);
-    border-color: var(--accent);
+    background: AccentColor;
+    color: AccentColorText;
+    border-color: AccentColor;
     font-weight: 600;
 }
 
 /* Divider */
 .lang-divider {
     height: 1px;
-    background: var(--border-color);
+    background: ButtonBorder;
     margin: 0;
 }
 
-/* Language List */
+/* Language list */
 .lang-list {
     overflow-y: auto;
     max-height: 240px;
@@ -616,7 +413,7 @@ body {
     padding: 0.5rem 1rem;
     cursor: pointer;
     font-size: 0.9rem;
-    color: var(--text-primary);
+    color: CanvasText;
     transition: background-color 0.1s;
     display: flex;
     align-items: center;
@@ -624,12 +421,12 @@ body {
 }
 
 .lang-item:hover {
-    background: var(--bg-hover);
+    background: color-mix(in srgb, AccentColor 16%, transparent);
 }
 
 .lang-item.active {
-    background: var(--accent-glow);
-    color: var(--accent);
+    background: color-mix(in srgb, AccentColor 16%, transparent);
+    color: AccentColor;
     font-weight: 600;
 }
 
@@ -639,27 +436,9 @@ body {
 
 .lang-item .lang-code {
     font-size: 0.75rem;
-    color: var(--text-muted);
+    color: GrayText;
     font-family: monospace;
     min-width: 26px;
-}
-
-/* Scrollbar inside dropdown */
-.lang-list::-webkit-scrollbar {
-    width: 6px;
-}
-
-.lang-list::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.lang-list::-webkit-scrollbar-thumb {
-    background: var(--bg-hover);
-    border-radius: 3px;
-}
-
-.lang-list::-webkit-scrollbar-thumb:hover {
-    background: var(--grey0);
 }
 
 /* ============================================================
@@ -675,21 +454,20 @@ body {
 
 .translate-btn {
     padding: 0.85rem 3rem;
-    background: var(--accent);
+    background: AccentColor;
     border: none;
-    border-radius: var(--border-radius-sm);
-    color: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    color: AccentColorText;
     font-size: 1.05rem;
     font-weight: 700;
     cursor: pointer;
-    transition: var(--transition);
+    transition: filter 0.2s ease, transform 0.2s ease;
     min-width: 200px;
 }
 
 .translate-btn:hover:not(:disabled) {
-    background: var(--accent-hover);
+    filter: brightness(1.08);
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px var(--accent-glow);
 }
 
 .translate-btn:active:not(:disabled) {
@@ -709,28 +487,11 @@ body {
 
 .keyboard-hint {
     font-size: 0.78rem;
-    color: var(--text-muted);
-    background: var(--bg-tertiary);
+    color: GrayText;
+    background: ButtonFace;
     padding: 0.25rem 0.6rem;
     border-radius: 4px;
     font-family: monospace;
-}
-
-/* Spinner */
-.spinner {
-    display: inline-block;
-    width: 16px;
-    height: 16px;
-    border: 2px solid var(--bg-primary);
-    border-right-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
 }
 
 /* ============================================================
@@ -740,46 +501,13 @@ body {
 .footer {
     margin-top: 2rem;
     padding-top: 1rem;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid ButtonBorder;
     text-align: center;
 }
 
 .privacy-note {
     font-size: 0.85rem;
-    color: var(--text-muted);
-}
-
-/* ============================================================
-   TOAST
-   ============================================================ */
-
-.toast {
-    position: fixed;
-    bottom: 2rem;
-    left: 50%;
-    transform: translateX(-50%) translateY(100px);
-    background: var(--bg-elevated);
-    border: 1px solid var(--accent);
-    color: var(--accent);
-    padding: 0.7rem 1.5rem;
-    border-radius: var(--border-radius-sm);
-    font-size: 0.9rem;
-    box-shadow: var(--shadow);
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.toast.show {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
+    color: GrayText;
 }
 
 /* ============================================================
@@ -831,33 +559,4 @@ body {
     .translate-btn {
         width: 100%;
     }
-}
-
-/* ============================================================
-   SCROLLBAR (global)
-   ============================================================ */
-
-::-webkit-scrollbar {
-    width: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: var(--bg-secondary);
-}
-
-::-webkit-scrollbar-thumb {
-    background: var(--bg-hover);
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: var(--grey0);
-}
-
-/* ============================================================
-   UTILITIES
-   ============================================================ */
-
-[hidden] {
-    display: none !important;
 }

@@ -30,10 +30,6 @@ let selectedModelProvider = null;
 // ============================================================================
 
 const els = {
-    // Theme
-    themeToggle: document.getElementById('themeToggle'),
-    themeIcon: document.getElementById('themeIcon'),
-
     // Status & Model
     statusIndicator: document.getElementById('statusIndicator'),
     statusText: document.getElementById('statusText'),
@@ -71,33 +67,6 @@ const els = {
     // Toast
     toast: document.getElementById('toast')
 };
-
-// ============================================================================
-// Theme Management
-// ============================================================================
-
-function getSystemTheme() {
-    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-}
-
-function getCurrentTheme() {
-    const stored = localStorage.getItem('translator-theme');
-    if (stored) return stored;
-    return getSystemTheme();
-}
-
-function applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    els.themeIcon.textContent = theme === 'dark' ? '🌙' : '☀️';
-    els.themeToggle.title = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
-}
-
-function toggleTheme() {
-    const current = getCurrentTheme();
-    const next = current === 'dark' ? 'light' : 'dark';
-    localStorage.setItem('translator-theme', next);
-    applyTheme(next);
-}
 
 // ============================================================================
 // Language Selector
@@ -552,9 +521,6 @@ function showToast(message, type = 'success') {
 // ============================================================================
 
 function setupEventListeners() {
-    // Theme toggle
-    els.themeToggle.addEventListener('click', toggleTheme);
-
     // Language selector buttons
     els.sourceLangBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -612,10 +578,6 @@ function setupEventListeners() {
 // ============================================================================
 
 async function init() {
-    // Apply theme
-    const theme = getCurrentTheme();
-    applyTheme(theme);
-
     // Load settings to get user preferences
     await loadSettings();
 
