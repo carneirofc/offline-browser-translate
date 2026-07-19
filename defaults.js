@@ -36,5 +36,11 @@ const DEFAULT_SETTINGS = {
     // (kept until the browser is closed, then wiped), or 'off'. Off by default.
     cacheMode: 'off',
     debug: false,       // Enable verbose logging
-    floatingButton: false // Show floating translate button on text selection (requires <all_urls> permission)
+    floatingButton: false, // Show floating translate button on text selection (requires <all_urls> permission)
+    // Image describe & interpret feature. visionModel is the multimodal model
+    // used to describe images (falls back to selectedModel when empty). Both are
+    // wired to an options-page UI in a later ticket; describePrompt overrides the
+    // built-in default prompt when set. {{targetLanguage}} is substituted at call time.
+    visionModel: '',
+    describePrompt: ''
 };

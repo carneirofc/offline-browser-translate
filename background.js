@@ -49,6 +49,17 @@ Produce only the {{targetLang}} translation, without any additional explanations
     }
 };
 
+// Default prompt for the image describe & interpret feature. Used when
+// settings.describePrompt is empty. {{targetLanguage}} is substituted with the
+// resolved target language name at call time.
+const DEFAULT_DESCRIBE_PROMPT = `Look at this image and respond with two parts.
+
+Description: describe in detail what the image shows — objects, people, text, colors, layout, and any notable details.
+
+Interpretation: explain the likely meaning, context, mood, and intent behind the image.
+
+Respond in {{targetLanguage}}.`;
+
 // Cache for models to avoid repeated API calls during translation
 let cachedModels = null;
 let modelsCacheTime = 0;
@@ -692,6 +703,132 @@ async function callProvider(provider, settings, modelId, systemPrompt, userPromp
     return callLMStudio(settings, modelId, systemPrompt, userPrompt, jsonOutput);
 }
 
+// ============================================================================
+// Image describe & interpret
+// ============================================================================
+
+// Vision call for OpenAI-compatible providers (LM Studio, llama.cpp). Sends the
+// image as a data: URL using the OpenAI multimodal `image_url` content shape and
+// returns the raw text response. Ollama uses a different shape (see follow-up).
+async function callOpenAIVision(baseUrl, providerLabel, settings, modelId, prompt, imageDataUrl) {
+    const body = {
+        model: modelId,
+        messages: [{
+            role: 'user',
+            content: [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: imageDataUrl } }
+            ]
+        }],
+        temperature: settings.temperature || 0.3,
+        stream: false
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
+    let response;
+    try {
+        response = await fetch(`${baseUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal
+        });
+    } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') throw new Error(`${providerLabel} request timed out after 5 minutes`);
+        if (e instanceof TypeError) throw new Error(`Failed to connect to ${providerLabel}. The server is offline or blocking the extension via CORS.`);
+        throw e;
+    }
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`${providerLabel} error: ${error}`);
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || '';
+}
+
+// Encode a Blob as a base64 data: URL. Runs in the service worker (no FileReader),
+// so it reads the bytes via arrayBuffer() and base64-encodes with btoa in chunks
+// (String.fromCharCode.apply blows the arg limit on large images otherwise).
+async function blobToDataUrl(blob) {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let binary = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return `data:${blob.type || 'image/png'};base64,${btoa(binary)}`;
+}
+
+// Fetch an image URL and return it as a base64 data: URL. `data:` URLs are used
+// directly. For http(s) URLs the service worker needs host access; the on-demand
+// <all_urls> request happens up front in the context-menu click handler (a user
+// gesture), so a failure here means it was denied or the site blocked the image.
+async function fetchImageAsDataUrl(srcUrl) {
+    if (!srcUrl) throw new Error('No image URL found.');
+    if (srcUrl.startsWith('data:')) return srcUrl;
+
+    let response;
+    try {
+        response = await fetch(srcUrl);
+    } catch (e) {
+        throw new Error('Could not download the image. The site may be blocking it, or permission to read images from other sites was denied.');
+    }
+    if (!response.ok) throw new Error(`Image download failed (HTTP ${response.status}).`);
+    const blob = await response.blob();
+    if (blob.type && !blob.type.startsWith('image/')) throw new Error('That URL did not return an image.');
+    return blobToDataUrl(blob);
+}
+
+// Orchestrate describe & interpret for one image: resolve the vision model and
+// provider (same selection/auto-detect as translation), fetch+encode the image,
+// build the prompt in the user's target language, and return the model's text.
+async function describeImage(srcUrl) {
+    const settings = await getSettings();
+
+    const modelId = settings.visionModel || settings.selectedModel;
+    if (!modelId) throw new Error('No vision model configured. Choose one in the extension options.');
+
+    let provider = settings.provider;
+    if (provider === 'auto') {
+        provider = await detectModelProvider(modelId, settings);
+        if (!provider) throw new Error('Could not determine the provider for the vision model.');
+    }
+    if (provider === 'ollama') {
+        // Ollama's multimodal API differs; support lands in a follow-up ticket.
+        throw new Error('Image description with Ollama is not supported yet. Select LM Studio or llama.cpp.');
+    }
+
+    const imageDataUrl = await fetchImageAsDataUrl(srcUrl);
+
+    const targetLangName = getLanguageName(settings.targetLanguage || 'en');
+    const promptTemplate = settings.describePrompt || DEFAULT_DESCRIBE_PROMPT;
+    const prompt = promptTemplate.replace(/{{targetLanguage}}/g, targetLangName);
+
+    const baseUrl = provider === 'llamacpp' ? settings.llamacppUrl : settings.lmstudioUrl;
+    const label = provider === 'llamacpp' ? 'llama.cpp' : 'LM Studio';
+
+    const text = await callOpenAIVision(baseUrl, label, settings, modelId, prompt, imageDataUrl);
+    if (!text || !text.trim()) throw new Error('The model returned an empty response.');
+    return text.trim();
+}
+
+// Ensure content.js is present in a tab before messaging it. PING first (cheap,
+// handled by the content script); inject only if that fails, matching the
+// inject-then-retry pattern used by the translation context-menu handlers.
+async function ensureContentScript(tabId) {
+    try {
+        await browserAPI.tabs.sendMessage(tabId, { type: 'PING' });
+    } catch (e) {
+        await browserAPI.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+        await new Promise(resolve => setTimeout(resolve, 200));
+    }
+}
+
 // Translate a single text as plain text (no JSON), used as the last-resort
 // fallback when structured output keeps failing. The whole response IS the
 // translation — nothing to parse, nothing to break the page.
@@ -1072,6 +1209,12 @@ browserAPI.runtime.onInstalled.addListener(async () => {
         contexts: ["selection"]
     }, () => { if (browserAPI.runtime.lastError) {} });
 
+    browserAPI.contextMenus.create({
+        id: "describe-image",
+        title: "Describe & interpret image",
+        contexts: ["image"]
+    }, () => { if (browserAPI.runtime.lastError) {} });
+
     // Auto-detect and select a model on fresh install (when none is configured yet)
     await autoDetectAndSelectModel();
 
@@ -1197,6 +1340,40 @@ browserAPI.contextMenus.onClicked.addListener(async (info, tab) => {
 
         } catch (e) {
             console.error('[Background] Context menu selection translation failed:', e);
+        }
+    } else if (info.menuItemId === "describe-image") {
+        if (!tab || !tab.id) return;
+
+        const srcUrl = info.srcUrl;
+
+        // Request the optional <all_urls> host permission up front, while we still
+        // have the click's user gesture — permissions.request needs one, and it
+        // would be gone after the async fetch. No-ops (returns immediately, no
+        // prompt) if already granted; skipped for data: URLs which need no fetch.
+        if (srcUrl && !srcUrl.startsWith('data:')) {
+            try {
+                await browserAPI.permissions.request({ origins: ['<all_urls>'] });
+            } catch (permErr) {
+                // Proceed anyway — same-origin/already-permitted images may still fetch.
+            }
+        }
+
+        try {
+            await ensureContentScript(tab.id);
+            await browserAPI.tabs.sendMessage(tab.id, { type: 'DESCRIBE_IMAGE_START' });
+        } catch (e) {
+            console.error('[Background] Could not open the description overlay:', e);
+            return;
+        }
+
+        try {
+            const text = await describeImage(srcUrl);
+            await browserAPI.tabs.sendMessage(tab.id, { type: 'DESCRIBE_IMAGE_RESULT', text });
+        } catch (e) {
+            console.error('[Background] Image description failed:', e);
+            try {
+                await browserAPI.tabs.sendMessage(tab.id, { type: 'DESCRIBE_IMAGE_ERROR', error: e.message });
+            } catch (sendErr) { /* overlay gone */ }
         }
     }
 });

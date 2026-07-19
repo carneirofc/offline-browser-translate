@@ -559,6 +559,140 @@ function hideStatus() {
     }
 }
 
+// ============================================================================
+// Image describe & interpret overlay (centered modal)
+// ============================================================================
+// A CSP-safe modal: built from DOM nodes with inline styles inside a shadow root
+// (no external assets, no injected <style>/keyframes), so it works on pages with
+// strict CSP and is isolated from page CSS. The spinner is rotated from JS to
+// avoid relying on CSS keyframes (which a page's style-src could block).
+
+let describeModalHost = null;
+let describeBodyEl = null;
+let describeCopyBtn = null;
+let describeSpinnerTimer = null;
+let describeKeyHandler = null;
+
+function closeDescribeModal() {
+    if (describeSpinnerTimer) { clearInterval(describeSpinnerTimer); describeSpinnerTimer = null; }
+    if (describeKeyHandler) { document.removeEventListener('keydown', describeKeyHandler, true); describeKeyHandler = null; }
+    if (describeModalHost) { describeModalHost.remove(); describeModalHost = null; }
+    describeBodyEl = null;
+    describeCopyBtn = null;
+}
+
+// Build (or rebuild) the empty modal shell and store references to its body and
+// copy button. Returns nothing — callers fill describeBodyEl.
+function ensureDescribeModal() {
+    closeDescribeModal();
+
+    const host = document.createElement('div');
+    host.id = 'llm-translator-describe-host';
+    host.setAttribute('translate', 'no');
+    const shadow = host.attachShadow({ mode: 'open' });
+
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2147483647;display:flex;align-items:center;justify-content:center;';
+
+    const card = document.createElement('div');
+    card.style.cssText = 'box-sizing:border-box;background:#2b3339;color:#d3c6aa;font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.55;max-width:560px;width:calc(100% - 40px);max-height:80vh;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.45);display:flex;flex-direction:column;overflow:hidden;';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.08);';
+    const titleEl = document.createElement('div');
+    titleEl.textContent = 'Image description';
+    titleEl.style.cssText = 'font-weight:600;font-size:15px;';
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.style.cssText = 'background:none;border:none;color:#d3c6aa;font-size:18px;cursor:pointer;padding:4px 8px;line-height:1;';
+    closeBtn.addEventListener('click', closeDescribeModal);
+    header.appendChild(titleEl);
+    header.appendChild(closeBtn);
+
+    const bodyEl = document.createElement('div');
+    bodyEl.style.cssText = 'padding:18px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;';
+
+    const footer = document.createElement('div');
+    footer.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid rgba(255,255,255,0.08);';
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = 'Copy';
+    copyBtn.style.cssText = 'background:#a7c080;color:#2b3339;border:none;border-radius:6px;padding:8px 16px;font-size:14px;font-weight:600;cursor:pointer;';
+    copyBtn.disabled = true;
+    copyBtn.style.opacity = '0.5';
+    copyBtn.addEventListener('click', async () => {
+        const text = describeBodyEl ? describeBodyEl.textContent : '';
+        const flash = () => { copyBtn.textContent = 'Copied'; setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500); };
+        try {
+            await navigator.clipboard.writeText(text);
+            flash();
+        } catch (e) {
+            // Fallback for pages/contexts where the async clipboard API is blocked.
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); flash(); } catch (e2) { /* give up silently */ }
+            ta.remove();
+        }
+    });
+    footer.appendChild(copyBtn);
+
+    card.appendChild(header);
+    card.appendChild(bodyEl);
+    card.appendChild(footer);
+    backdrop.appendChild(card);
+    shadow.appendChild(backdrop);
+    document.body.appendChild(host);
+
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeDescribeModal(); });
+    describeKeyHandler = (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeDescribeModal(); } };
+    document.addEventListener('keydown', describeKeyHandler, true);
+
+    describeModalHost = host;
+    describeBodyEl = bodyEl;
+    describeCopyBtn = copyBtn;
+}
+
+function showDescribeLoading() {
+    ensureDescribeModal();
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;align-items:center;gap:12px;';
+    const spinner = document.createElement('div');
+    spinner.style.cssText = 'box-sizing:border-box;width:20px;height:20px;border:3px solid rgba(211,198,170,0.3);border-top-color:#a7c080;border-radius:50%;';
+    const label = document.createElement('span');
+    label.textContent = 'Analyzing image…';
+    wrap.appendChild(spinner);
+    wrap.appendChild(label);
+    describeBodyEl.appendChild(wrap);
+
+    let deg = 0;
+    describeSpinnerTimer = setInterval(() => {
+        deg = (deg + 30) % 360;
+        spinner.style.transform = `rotate(${deg}deg)`;
+    }, 80);
+}
+
+function showDescribeResult(text) {
+    // The user may have closed the modal while the request was in flight.
+    if (!describeModalHost || !describeBodyEl) return;
+    if (describeSpinnerTimer) { clearInterval(describeSpinnerTimer); describeSpinnerTimer = null; }
+    describeBodyEl.textContent = text || '';
+    if (describeCopyBtn) {
+        describeCopyBtn.disabled = false;
+        describeCopyBtn.style.opacity = '1';
+    }
+}
+
+function showDescribeError(errorMessage) {
+    if (!describeModalHost || !describeBodyEl) return;
+    if (describeSpinnerTimer) { clearInterval(describeSpinnerTimer); describeSpinnerTimer = null; }
+    describeBodyEl.textContent = errorMessage || 'Something went wrong.';
+    describeBodyEl.style.color = '#e67e80';
+}
+
 /**
  * Detect page source language from HTML lang attribute
  * Returns base language code (e.g., "en" from "en-US")
@@ -1121,6 +1255,21 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({
                 language: getPageLanguage()
             });
+            break;
+
+        case 'DESCRIBE_IMAGE_START':
+            showDescribeLoading();
+            sendResponse({ ok: true });
+            break;
+
+        case 'DESCRIBE_IMAGE_RESULT':
+            showDescribeResult(message.text);
+            sendResponse({ ok: true });
+            break;
+
+        case 'DESCRIBE_IMAGE_ERROR':
+            showDescribeError(message.error);
+            sendResponse({ ok: true });
             break;
 
         case 'PING':
