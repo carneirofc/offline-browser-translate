@@ -31,7 +31,9 @@ const DEFAULT_SETTINGS = {
     maxOutputRetries: 2,    // Extra attempts when the model returns malformed/missing translations
     plainTextFallback: true, // After JSON retries fail, translate the failed items one-by-one as plain text
     showGlow: false,
-    numCtx: 0,          // Ollama context window size (0 = model default)
+    numCtx: 8192,       // Ollama context window size (raised from the model
+                        // default so long single-block requests aren't silently
+                        // truncated; 0 would fall back to the model default)
     // Translation cache: 'persistent' (kept across browser sessions), 'session'
     // (kept until the browser is closed, then wiped), or 'off'. Off by default.
     cacheMode: 'off',

@@ -26,6 +26,9 @@ browserAPI.runtime.sendMessage({ type: 'GET_SETTINGS' }).then(r => {
         debugEnabled = !!r.settings.debug;
         if (r.settings.targetLanguage) currentTargetLanguage = r.settings.targetLanguage;
         floatingButtonEnabled = !!r.settings.floatingButton;
+        if (Number.isInteger(r.settings.maxItemsPerBatch)) maxItemsPerBatch = r.settings.maxItemsPerBatch;
+        if (Number.isInteger(r.settings.maxTokensPerBatch)) maxTokensPerBatch = r.settings.maxTokensPerBatch;
+        if (typeof r.settings.sourceLanguage === 'string') sourceLanguageSetting = r.settings.sourceLanguage;
     }
 }).catch(() => {});
 
@@ -42,6 +45,9 @@ browserAPI.storage.onChanged.addListener((changes, area) => {
         floatingButtonEnabled = newSettings.floatingButton;
         if (!floatingButtonEnabled) hideFloatingBtn();
     }
+    if (Number.isInteger(newSettings?.maxItemsPerBatch)) maxItemsPerBatch = newSettings.maxItemsPerBatch;
+    if (Number.isInteger(newSettings?.maxTokensPerBatch)) maxTokensPerBatch = newSettings.maxTokensPerBatch;
+    if (typeof newSettings?.sourceLanguage === 'string') sourceLanguageSetting = newSettings.sourceLanguage;
 });
 
 // Track text nodes and their segments
@@ -54,6 +60,9 @@ let nextNodeId = 0;
 let nextSegmentId = 0;
 let currentTargetLanguage = 'en';
 let maxConcurrentRequests = 4; // Default parallel requests (LMStudio 0.4.0+ supports up to 4)
+let maxItemsPerBatch = 8;      // Max text segments per translation request (block-aware batching)
+let maxTokensPerBatch = 2000;  // Token budget per translation request
+let sourceLanguageSetting = 'auto'; // User's source-language setting ('auto' = detect)
 let autoTranslateEnabled = false;
 let showGlow = false; // Setting for glow effect (disabled by default)
 let mutationObserver = null;
@@ -203,12 +212,46 @@ function calculatePriority(node) {
     return Math.max(0, priority);
 }
 
+// Block-level container tags. Text nodes under the same nearest block ancestor
+// belong to one on-page passage and are batched together (issue #5).
+const BLOCK_TAGS = new Set([
+    'P', 'DIV', 'LI', 'TD', 'TH', 'BLOCKQUOTE', 'FIGCAPTION', 'DD', 'DT',
+    'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'SECTION', 'ARTICLE', 'ASIDE',
+    'HEADER', 'FOOTER', 'MAIN', 'PRE', 'CAPTION', 'SUMMARY', 'DETAILS'
+]);
+
+// Per-extraction map of block element -> stable numeric block id. Reset by
+// extractTextNodes so ids are contiguous within a translation run.
+const blockElementIds = new Map();
+let nextBlockId = 0;
+
+/**
+ * Resolve the numeric id of the nearest block-level ancestor of a text node, so
+ * segments in the same paragraph/list-item/cell share a block id for batching.
+ * @param {Node} node a text node
+ * @returns {number} stable block id for this run
+ */
+function getBlockId(node) {
+    let el = node.parentElement;
+    while (el && el !== document.body && !BLOCK_TAGS.has(el.tagName)) {
+        el = el.parentElement;
+    }
+    const key = el || node.parentElement || document.body;
+    let id = blockElementIds.get(key);
+    if (id === undefined) {
+        id = nextBlockId++;
+        blockElementIds.set(key, id);
+    }
+    return id;
+}
+
 /**
  * Register a text node: split into segments, add to maps, return text items for translation.
  */
 function registerTextNode(node) {
     const nodeId = nextNodeId++;
     const priority = calculatePriority(node);
+    const blockId = getBlockId(node);
     const originalText = node.textContent;
     const segments = [];
     const textItems = [];
@@ -224,7 +267,7 @@ function registerTextNode(node) {
                 id: segmentId, originalText: rawSeg,
                 translatedText: null, processedTranslatedText: null, translated: false
             });
-            textItems.push({ id: segmentId, text: rawSeg.trim(), priority });
+            textItems.push({ id: segmentId, text: rawSeg.trim(), priority, blockId });
         } else {
             segments.push({
                 id: null, originalText: rawSeg,
@@ -246,8 +289,10 @@ function extractTextNodes(root = document.body, onlyNew = false) {
         textNodeMap.clear();
         segmentToNodeIdMap.clear();
         translatedNodeSet.clear();
+        blockElementIds.clear();
         nextNodeId = 0;
         nextSegmentId = 0;
+        nextBlockId = 0;
     }
 
     const walker = document.createTreeWalker(
@@ -355,12 +400,14 @@ function extractSelectionTextNodes(selection) {
             const priority = calculatePriority(node);
             if (existingEntry !== null) {
                 // Node already registered, extract its translatable segments
+                const blockId = getBlockId(node);
                 for (const seg of existingEntry.segments) {
                     if (seg.id !== null) {
                         textItems.push({
                             id: seg.id,
                             text: seg.originalText.trim(),
-                            priority
+                            priority,
+                            blockId
                         });
                     }
                 }
@@ -727,10 +774,12 @@ async function translateBatch(textItems, targetLanguage, sourceLanguage = 'auto'
 
     debugLog(`[Translator] translateBatch called for ${textItems.length} items:`, textItems);
 
-    // Use passed source language if valid, otherwise detect from page
+    // Use the caller's resolved source language when concrete; otherwise resolve
+    // it here from the page's declared language and script analysis of the batch.
+    const sample = textItems.map(i => i.text).join('\n').slice(0, 4000);
     const pageLanguage = (sourceLanguage && sourceLanguage !== 'auto')
         ? sourceLanguage
-        : getPageLanguage();
+        : resolveSourceLanguage('auto', sample, getDeclaredPageLanguage());
 
     let lastError = null;
     for (let attempt = 0; attempt < retries; attempt++) {
@@ -861,8 +910,21 @@ async function translatePage(targetLanguage, sourceLanguage = 'auto', enableAuto
             return;
         }
 
-        // Initialize queue with all items (already sorted by priority)
-        pendingTranslationQueue = [...textItems];
+        // Resolve the source language once for the whole run, from the user's
+        // setting, the page's declared language, and script analysis of the text
+        // itself, so a Japanese page is translated from Japanese, not English.
+        const effectiveSetting = (sourceLanguage && sourceLanguage !== 'auto')
+            ? sourceLanguage : sourceLanguageSetting;
+        const sample = textItems.slice(0, 40).map(i => i.text).join('\n').slice(0, 4000);
+        const resolvedSource = resolveSourceLanguage(effectiveSetting, sample, getDeclaredPageLanguage());
+        debugLog(`[Translator] Resolved source language: ${resolvedSource} (setting=${effectiveSetting})`);
+
+        // Group segments into block-aware batches: same-block segments stay
+        // together as one passage, packed up to the configured item/token budget.
+        pendingTranslationQueue = groupTextNodesIntoBatches(textItems, {
+            maxItems: maxItemsPerBatch,
+            maxTokens: maxTokensPerBatch
+        });
 
         showStatus(`Found ${textItems.length} text elements. Translating...`);
 
@@ -871,7 +933,6 @@ async function translatePage(targetLanguage, sourceLanguage = 'auto', enableAuto
         let totalFromCache = 0; // Elements served from the translation cache
         let cacheActive = false; // Whether the cache was on for this run
         const totalItems = textItems.length;
-        const batchSize = 8; // Process in batches
         const failedItems = []; // Track items that failed for potential retry
         let inFlightBatches = []; // Track in-flight batch promises
 
@@ -879,12 +940,12 @@ async function translatePage(targetLanguage, sourceLanguage = 'auto', enableAuto
         while ((pendingTranslationQueue.length > 0 || inFlightBatches.length > 0) && !translationCancelled) {
             // Fill up to maxConcurrentRequests parallel batches
             while (inFlightBatches.length < maxConcurrentRequests && pendingTranslationQueue.length > 0) {
-                const batch = pendingTranslationQueue.splice(0, batchSize);
+                const batch = pendingTranslationQueue.shift();
                 totalProcessed += batch.length;
 
                 // Create a trackable batch object with unique ID
                 const batchId = Date.now() + Math.random();
-                const batchPromise = translateBatch(batch, targetLanguage, sourceLanguage)
+                const batchPromise = translateBatch(batch, targetLanguage, resolvedSource)
                     .then(result => ({ batchId, result, batch, success: true }))
                     .catch(error => ({ batchId, error, batch, success: false }));
 
@@ -979,20 +1040,25 @@ async function translatePage(targetLanguage, sourceLanguage = 'auto', enableAuto
 }
 
 /**
- * Recalculate priorities for pending items based on current viewport
+ * Recalculate priorities for pending items based on current viewport, then
+ * reorder the pending batches so blocks now in view translate first. Batches
+ * themselves stay intact (block cohesion is preserved); only their order changes.
  */
 function recalculatePendingPriorities() {
-    for (const item of pendingTranslationQueue) {
-        const nodeId = segmentToNodeIdMap.get(item.id);
-        if (nodeId !== undefined) {
-            const entry = textNodeMap.get(nodeId);
-            if (entry && entry.node && entry.node.parentElement) {
-                item.priority = calculatePriority(entry.node);
+    for (const batch of pendingTranslationQueue) {
+        for (const item of batch) {
+            const nodeId = segmentToNodeIdMap.get(item.id);
+            if (nodeId !== undefined) {
+                const entry = textNodeMap.get(nodeId);
+                if (entry && entry.node && entry.node.parentElement) {
+                    item.priority = calculatePriority(entry.node);
+                }
             }
         }
     }
-    // Re-sort by new priorities
-    pendingTranslationQueue.sort((a, b) => b.priority - a.priority);
+    // Re-sort batches by their highest-priority (most visible) member.
+    const batchPriority = (batch) => batch.reduce((m, it) => Math.max(m, it.priority || 0), 0);
+    pendingTranslationQueue.sort((a, b) => batchPriority(b) - batchPriority(a));
 }
 
 /**
@@ -1112,16 +1178,27 @@ async function translateSelection(targetLanguage, sourceLanguage = 'auto') {
 
         showStatus(`Translating ${textItems.length} selected elements...`);
 
+        // Resolve source once and batch the selection block-aware, like the page.
+        const effectiveSetting = (sourceLanguage && sourceLanguage !== 'auto')
+            ? sourceLanguage : sourceLanguageSetting;
+        const sample = textItems.slice(0, 40).map(i => i.text).join('\n').slice(0, 4000);
+        const resolvedSource = resolveSourceLanguage(effectiveSetting, sample, getDeclaredPageLanguage());
+        const batches = groupTextNodesIntoBatches(textItems, {
+            maxItems: maxItemsPerBatch,
+            maxTokens: maxTokensPerBatch
+        });
+
         let totalApplied = 0;
-        const batchSize = 8;
+        let processed = 0;
         const failedItems = [];
 
-        for (let i = 0; i < textItems.length && !translationCancelled; i += batchSize) {
-            const batch = textItems.slice(i, i + batchSize);
-            const result = await translateBatch(batch, targetLanguage, sourceLanguage);
+        for (const batch of batches) {
+            if (translationCancelled) break;
+            const result = await translateBatch(batch, targetLanguage, resolvedSource);
             totalApplied += result.applied;
             if (result.failed && result.failed.length > 0) failedItems.push(...result.failed);
-            const percent = Math.min(100, Math.round(((i + batch.length) / textItems.length) * 100));
+            processed += batch.length;
+            const percent = Math.min(100, Math.round((processed / textItems.length) * 100));
             showStatus(`Translating selection... ${percent}%`);
         }
 

@@ -25,6 +25,20 @@ const sharedGlobals = {
   cacheClear: 'readonly',
   cacheCount: 'readonly',
   cachePersistentAvailable: 'readonly',
+  // Exposed by translation-core.js — pure helpers shared by the background
+  // worker and the content script (and unit-tested under Node).
+  normalizeLangCode: 'readonly',
+  detectLanguageByScript: 'readonly',
+  detectSourceLanguage: 'readonly',
+  resolveSourceLanguage: 'readonly',
+  formatTextsForPrompt: 'readonly',
+  buildPrompt: 'readonly',
+  cleanTranslationText: 'readonly',
+  isSuspiciousTranslation: 'readonly',
+  extractJsonObject: 'readonly',
+  parseTranslationResponse: 'readonly',
+  estimateTokens: 'readonly',
+  groupTextNodesIntoBatches: 'readonly',
 };
 
 export default [
@@ -64,6 +78,23 @@ export default [
       'no-cond-assign': ['warn', 'except-parens'],
       'no-case-declarations': 'warn',
       'no-useless-escape': 'warn',
+    },
+  },
+  {
+    // translation-core.js is dual-target: a browser/worker global module AND a
+    // CommonJS module required by the Node test suite. Give it Node globals so
+    // its `module.exports` guard lints clean.
+    files: ['translation-core.js'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
+  {
+    // Unit tests run under Node's built-in test runner (dev-only; never shipped).
+    files: ['test/**/*.js'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: { ...globals.node },
     },
   },
 ];

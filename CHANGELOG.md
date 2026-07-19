@@ -12,7 +12,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Source-language detection**: when the source is left on *auto*, the extension
+  now detects it from the page's declared language and from script analysis of
+  the text itself (Japanese kana/kanji, Hangul, Han, Cyrillic, Arabic, Greek,
+  Devanagari, Thai, …) instead of assuming English. A Japanese page is translated
+  *from Japanese*, and the resolved source is named to the model in the prompt.
+- **Block-aware batching**: page and selection translation now group text
+  segments by their nearest block-level ancestor and send each block as one
+  request described as a continuous passage, so the model sees coherent context.
+  The **max items per batch** and **max tokens per batch** settings are now
+  honoured (the batch size was previously hard-coded to 8); oversize blocks spill
+  across consecutive requests, and each unique string is still translated once.
+- **Unit tests**: a dev-only `node:test` suite (`npm test`) covers the pure
+  translation helpers — source detection, response parsing, and batch grouping.
+  Nothing new ships in the extension bundle.
+
 ### Changed
+- The Ollama context-window default (`numCtx`) is raised from *model default* to
+  **8192** so long single-block requests aren't silently truncated.
+- Pure translation helpers (source detection, response parsing, prompt building,
+  block batching) were extracted into a shared `translation-core.js` module used
+  by both the background worker and the content script and exercised by the tests.
+
+### Changed (UI)
 - **UI icons**: removed all emoji/unicode glyphs from the popup, translator, and
   options pages. Decorative emoji in page titles, section headings, and button
   labels are dropped (text only), while functional control glyphs (refresh,

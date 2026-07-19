@@ -9,7 +9,7 @@ const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 // Import shared scripts (for Service Worker context). defaults.js defines the
 // shared DEFAULT_SETTINGS used across the background and all UI screens.
 if (typeof importScripts === 'function') {
-    importScripts('languages.js', 'cache.js', 'defaults.js');
+    importScripts('languages.js', 'cache.js', 'defaults.js', 'translation-core.js');
 }
 
 // ============================================================================
@@ -23,11 +23,11 @@ function debugWarn(...args) { if (debugEnabled) console.warn(...args); }
 
 const PROMPT_TEMPLATES = {
     default: {
-        system: `You are a professional translator. Translate the given texts to {{targetLanguage}}. 
+        system: `You are a professional translator translating from {{sourceLang}} to {{targetLanguage}}. The numbered texts are consecutive segments of one continuous passage — translate them together so pronouns, dropped subjects, and honorifics stay consistent.
 Respond ONLY with a JSON object in this exact format:
 {"translations": [{"id": 0, "text": "translated text"}, {"id": 1, "text": "another translation"}]}
 Maintain the original meaning, tone, and formatting. Do not add explanations.`,
-        user: `Translate the following texts to {{targetLanguage}}:\n{{texts}}`
+        user: `Translate the following {{sourceLang}} texts to {{targetLanguage}}:\n{{texts}}`
     },
     translategemma: {
         // TranslateGemma EXACT format - do not modify
@@ -39,7 +39,7 @@ Produce only the {{targetLang}} translation, without any additional explanations
 {{texts}}`
     },
     simple: {
-        system: `You are a translator. Translate to {{targetLanguage}}. Output JSON only:
+        system: `You are a translator. Translate from {{sourceLang}} to {{targetLanguage}}. The numbered texts are one continuous passage. Output JSON only:
 {"translations": [{"id": N, "text": "translation"}]}`,
         user: `Translate to {{targetLanguage}}:\n{{texts}}`
     },
@@ -276,187 +276,11 @@ async function listModels(settings, useCache = true) {
 // Translation Logic
 // ============================================================================
 
-function formatTextsForPrompt(textItems) {
-    return textItems.map(item => `[${item.id}]: ${item.text}`).join('\n');
-}
-
-function buildPrompt(template, vars) {
-    let result = template;
-    for (const [key, value] of Object.entries(vars)) {
-        result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
-    }
-    return result;
-}
-
-// A small allowlist of inline HTML tags that occasionally leak from models.
-// We only strip these — arbitrary "<...>" is left alone so legitimate text like
-// "a < b" or "<3" is never mangled.
-const LEAKED_HTML_TAG = /<\/?(?:div|span|p|br|b|i|em|strong|ul|ol|li|a|h[1-6])\b[^>]*>/gi;
-
-// Clean translation text - remove ID prefixes and HTML garbage that LLM might include
-function cleanTranslationText(text) {
-    if (!text) return text;
-    // Remove patterns like "[99]: ", "[99]:", "99: ", "99:" at start of text
-    let cleaned = text.replace(/^\[?\d+\]?:\s*/g, '');
-    // Remove only known HTML tags that occasionally leak through
-    cleaned = cleaned.replace(LEAKED_HTML_TAG, '');
-    // Normalize multiple spaces to single space (but preserve leading/trailing)
-    cleaned = cleaned.replace(/  +/g, ' ');
-    // Don't trim - let content.js handle whitespace preservation from original
-    return cleaned;
-}
-
-// Heuristic: does this string look like leaked structure (JSON/markup) rather
-// than an actual translation? Used to reject garbage so the page keeps its
-// original text instead of being broken. Be conservative to avoid false positives.
-function isSuspiciousTranslation(text) {
-    if (text === null || text === undefined) return true;
-    const t = String(text).trim();
-    if (!t) return true;
-    // Must contain at least one letter — pure punctuation/braces is garbage.
-    if (!/\p{L}/u.test(t)) return true;
-    // Leaked JSON keys from our own schema.
-    if (/["']?(?:translations|id|text)["']?\s*:/.test(t)) return true;
-    // Wrapped in a JSON object/array container with a quote or colon inside.
-    if (/^[\[{][\s\S]*[\]}]$/.test(t) && /["':]/.test(t)) return true;
-    // Markdown code fence.
-    if (t.includes('```')) return true;
-    return false;
-}
-
-// Extract the first balanced {...} object from a string, respecting strings and
-// escapes. More reliable than a greedy regex when the model adds prose around it.
-function extractJsonObject(text) {
-    const start = text.indexOf('{');
-    if (start === -1) return null;
-    let depth = 0;
-    let inString = false;
-    let escaped = false;
-    for (let i = start; i < text.length; i++) {
-        const ch = text[i];
-        if (inString) {
-            if (escaped) escaped = false;
-            else if (ch === '\\') escaped = true;
-            else if (ch === '"') inString = false;
-        } else if (ch === '"') {
-            inString = true;
-        } else if (ch === '{') {
-            depth++;
-        } else if (ch === '}') {
-            depth--;
-            if (depth === 0) return text.slice(start, i + 1);
-        }
-    }
-    return null; // Unbalanced (e.g. truncated) — let the caller fall back.
-}
-
-function parseTranslationResponse(response, originalItems) {
-    const expectedCount = originalItems.length;
-    let translations = [];
-
-    try {
-        // Clean up markdown code blocks if present
-        let cleanResponse = response
-            .replace(/^```json\s*/m, '')
-            .replace(/^```\s*/m, '')
-            .replace(/\s*```$/m, '')
-            .trim();
-
-        // Try to parse as JSON first
-        const parsed = JSON.parse(cleanResponse);
-        if (parsed.translations && Array.isArray(parsed.translations)) {
-            translations = parsed.translations;
-        } else if (Array.isArray(parsed)) {
-            translations = parsed;
-        }
-    } catch (e) {
-        // Try to extract a balanced JSON object embedded in surrounding prose
-        const jsonStr = extractJsonObject(response);
-        if (jsonStr) {
-            try {
-                const parsed = JSON.parse(jsonStr);
-                if (parsed.translations && Array.isArray(parsed.translations)) {
-                    translations = parsed.translations;
-                } else if (Array.isArray(parsed)) {
-                    translations = parsed;
-                }
-            } catch (e2) {
-                // Fall through to line-by-line parsing
-            }
-        }
-    }
-
-    // If JSON parsing worked, check if we need to remap IDs
-    if (translations.length > 0) {
-        // Clean up translations - remove any ID prefixes from the text
-        translations = translations.map(t => ({
-            ...t,
-            text: cleanTranslationText(t.text)
-        }));
-
-        // Check if LLM returned sequential IDs (0, 1, 2...) instead of our IDs
-        const llmIds = translations.map(t => t.id);
-        const ourIds = originalItems.map(t => t.id);
-        const llmUsedSequential = llmIds.every((id, i) => id === i);
-        const idsMismatch = !llmIds.some(id => ourIds.includes(id));
-
-        if (llmUsedSequential || idsMismatch) {
-            // console.log('[Background] LLM used sequential IDs, remapping to original IDs');
-            // Map sequential LLM IDs to our original IDs
-            translations = translations.map((t, index) => ({
-                id: originalItems[index]?.id ?? t.id,
-                text: t.text,
-                error: t.error
-            }));
-        }
-
-        return translations;
-    }
-
-    // Single item: the entire response is one translation (preserve newlines)
-    if (expectedCount === 1) {
-        let text = response.trim().replace(/^\[?\d+\]?:\s*/, '');
-        return [{ id: originalItems[0].id, text: cleanTranslationText(text) }];
-    }
-
-    // Fallback: parse by [id]: markers, grouping continuation lines per segment
-    const idMarkerRegex = /^\[?(\d+)\]?:\s*(.*)$/;
-    const segments = [];
-    let current = null;
-
-    for (const line of response.split('\n')) {
-        const match = line.match(idMarkerRegex);
-        if (match) {
-            if (current) segments.push(current);
-            current = { id: parseInt(match[1]), text: match[2] };
-        } else if (current) {
-            current.text += '\n' + line;
-        }
-    }
-    if (current) segments.push(current);
-
-    if (segments.length > 0) {
-        for (let i = 0; i < segments.length; i++) {
-            const seg = segments[i];
-            const text = seg.text.trim();
-            if (!text) continue;
-            const isOurId = originalItems.some(item => item.id === seg.id);
-            translations.push({
-                id: isOurId ? seg.id : (originalItems[i]?.id ?? seg.id),
-                text: cleanTranslationText(text)
-            });
-        }
-        return translations;
-    }
-
-    // Last resort: no markers found, one line = one translation
-    for (let i = 0; i < Math.min(response.split('\n').filter(l => l.trim()).length, expectedCount); i++) {
-        const line = response.split('\n').filter(l => l.trim())[i];
-        const originalId = originalItems[i]?.id;
-        if (originalId !== undefined) translations.push({ id: originalId, text: cleanTranslationText(line.trim()) });
-    }
-    return translations;
-}
+// formatTextsForPrompt, buildPrompt, cleanTranslationText, isSuspiciousTranslation,
+// extractJsonObject and parseTranslationResponse now live in translation-core.js
+// (loaded via importScripts / manifest background.scripts) so they can be shared
+// with the content script and unit-tested under Node. They remain available here
+// as globals.
 
 async function autoDetectAndSelectModel() {
     try {
@@ -903,7 +727,7 @@ async function ensureContentScript(tabId) {
     try {
         await browserAPI.tabs.sendMessage(tabId, { type: 'PING' });
     } catch (e) {
-        await browserAPI.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+        await browserAPI.scripting.executeScript({ target: { tabId }, files: ['translation-core.js', 'content.js'] });
         await new Promise(resolve => setTimeout(resolve, 200));
     }
 }
@@ -957,14 +781,22 @@ async function translate(textItems, targetLanguage, settings) {
         if (settings.customUserPromptTemplate) userTemplate = settings.customUserPromptTemplate;
     }
 
-    // Template variables shared across attempts
+    // Template variables shared across attempts. The content script resolves the
+    // source language (script detection + page metadata) and passes it as
+    // settings.sourceLanguage, so a Japanese page arrives here as 'ja', not 'en'.
     const targetLangName = getLanguageName(targetLanguage);
-    const sourceLangCode = (settings.sourceLanguage && settings.sourceLanguage !== 'auto')
-        ? settings.sourceLanguage
-        : 'en';
+    const explicitSource = (settings.sourceLanguage && settings.sourceLanguage !== 'auto')
+        ? (normalizeLangCode(settings.sourceLanguage) || settings.sourceLanguage)
+        : '';
+    // Plain-text formats (e.g. TranslateGemma) require a concrete source code;
+    // fall back to English only as a last resort when nothing was resolved.
+    const sourceLangCode = explicitSource || 'en';
+    // Structured prompts name the source in prose; stay neutral when unknown so
+    // we don't assert "English" for an undetected page.
+    const sourceLangName = explicitSource ? getLanguageName(explicitSource) : 'the source language';
     const baseVars = {
         targetLanguage: targetLangName,
-        sourceLang: getLanguageName(sourceLangCode),
+        sourceLang: sourceLangName,
         sourceCode: sourceLangCode.toUpperCase(),
         targetLang: targetLangName,
         targetCode: targetLanguage.toUpperCase()
@@ -1164,7 +996,7 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         await browserAPI.scripting.registerContentScripts([{
                             id: 'llm-translator-content',
                             matches: ['http://*/*', 'https://*/*'],
-                            js: ['content.js'],
+                            js: ['translation-core.js', 'content.js'],
                             runAt: 'document_idle'
                         }]);
                     } catch (e) {
@@ -1305,7 +1137,7 @@ browserAPI.runtime.onInstalled.addListener(async () => {
             await browserAPI.scripting.registerContentScripts([{
                 id: 'llm-translator-content',
                 matches: ['http://*/*', 'https://*/*'],
-                js: ['content.js'],
+                js: ['translation-core.js', 'content.js'],
                 runAt: 'document_idle'
             }]);
         } catch (e) {
@@ -1363,7 +1195,7 @@ browserAPI.contextMenus.onClicked.addListener(async (info, tab) => {
                 // If message failed, content script might not be loaded. Inject it.
                 await browserAPI.scripting.executeScript({
                     target: { tabId: tab.id },
-                    files: ['content.js']
+                    files: ['translation-core.js', 'content.js']
                 });
 
                 // Wait briefly for script to initialize
@@ -1412,7 +1244,7 @@ browserAPI.contextMenus.onClicked.addListener(async (info, tab) => {
             try {
                 await sendSelectionMessage();
             } catch (e) {
-                await browserAPI.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+                await browserAPI.scripting.executeScript({ target: { tabId: tab.id }, files: ['translation-core.js', 'content.js'] });
                 await new Promise(resolve => setTimeout(resolve, 200));
                 await sendSelectionMessage();
             }

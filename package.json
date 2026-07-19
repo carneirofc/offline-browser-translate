@@ -11,6 +11,7 @@
     "url": "https://github.com/carneirofc/offline-browser-translate.git"
   },
   "scripts": {
+    "test": "node --test",
     "lint": "eslint .",
     "lint:ext": "web-ext lint --source-dir=.",
     "build": "web-ext build"

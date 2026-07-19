@@ -40,6 +40,7 @@
       "languages.js",
       "cache.js",
       "defaults.js",
+      "translation-core.js",
       "background.js"
     ],
     "service_worker": "background.js"
