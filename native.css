@@ -1,0 +1,197 @@
+/*
+ * Shared native-look baseline for Local LLM Translator.
+ *
+ * Renders native OS controls (selects, inputs, checkboxes, buttons, scrollbars)
+ * that follow the light/dark preference automatically via `color-scheme` and CSS
+ * system-colour keywords (AccentColor, ButtonFace, Canvas, Field, GrayText, …).
+ * There is no custom palette and no manual theme toggle. Every page links this
+ * file FIRST; the page-specific stylesheets keep layout only.
+ *
+ * The few semantic status colours (ok / warn / danger) have no system-colour
+ * equivalent, so they are defined once here with light-dark() — which resolves
+ * against `color-scheme`, so they too follow the OS theme.
+ */
+
+:root {
+    color-scheme: light dark;
+
+    --radius: 8px;
+    --radius-sm: 6px;
+
+    /* Semantic status colours — no system keyword exists for these. */
+    --ok: light-dark(#1a7f37, #3fb950);
+    --warn: light-dark(#9a6700, #d4a72c);
+    --danger: light-dark(#b3261e, #f2b8b5);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, sans-serif;
+}
+
+body {
+    margin: 0;
+    background: Canvas;
+    color: CanvasText;
+    line-height: 1.5;
+}
+
+/* Let native controls inherit typography; the UA paints them per OS theme. */
+input,
+select,
+textarea,
+button {
+    font: inherit;
+    color: inherit;
+}
+
+/* ---- Buttons ------------------------------------------------------------- */
+.primary-btn,
+.secondary-btn,
+.danger-btn {
+    padding: 0.55rem 1.1rem;
+    border-radius: var(--radius);
+    border: 1px solid ButtonBorder;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.primary-btn {
+    background: AccentColor;
+    color: AccentColorText;
+    border-color: AccentColor;
+}
+
+.secondary-btn {
+    background: ButtonFace;
+    color: ButtonText;
+}
+
+.danger-btn {
+    background: ButtonFace;
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.primary-btn:hover,
+.secondary-btn:hover,
+.danger-btn:hover {
+    filter: brightness(1.08);
+}
+
+.primary-btn:disabled,
+.secondary-btn:disabled,
+.danger-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Small icon button (e.g. refresh) — square, native surface. */
+.icon-btn {
+    padding: 8px 10px;
+    background: ButtonFace;
+    color: ButtonText;
+    border: 1px solid ButtonBorder;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.icon-btn:hover {
+    filter: brightness(1.08);
+}
+
+/* Shared focus ring for all controls, tied to the OS accent colour. */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+    outline: 2px solid AccentColor;
+    outline-offset: 1px;
+}
+
+/* ---- Status dot ---------------------------------------------------------- */
+/* Neutral (checking) pulses; .connected and .error are steady. */
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: block;
+    background: var(--warn);
+    animation: nl-pulse 1.5s infinite;
+}
+
+.status-dot.connected {
+    background: var(--ok);
+    animation: none;
+}
+
+.status-dot.error {
+    background: var(--danger);
+    animation: none;
+}
+
+@keyframes nl-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ---- Spinner ------------------------------------------------------------- */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid GrayText;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: nl-spin 0.6s linear infinite;
+}
+
+@keyframes nl-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ---- Toast --------------------------------------------------------------- */
+.toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: Canvas;
+    color: CanvasText;
+    border: 1px solid AccentColor;
+    padding: 0.7rem 1.5rem;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    z-index: 1000;
+    transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.3s, visibility 0.3s;
+}
+
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.toast-icon {
+    font-size: 1.1rem;
+}
+
+/* ---- Utility ------------------------------------------------------------- */
+[hidden] {
+    display: none !important;
+}
