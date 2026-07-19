@@ -20,7 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **llama.cpp** (OpenAI `image_url` shape) and **Ollama** (native `images`
   field); uses a new `visionModel` setting (falls back to the selected model).
   Cross-origin images request the optional `<all_urls>` permission on demand.
-  An options-page picker/prompt editor follows.
+  Descriptions are cached (when the cache is enabled) keyed by the image bytes,
+  model, and target language, so re-describing the same picture is instant. An
+  options-page picker/prompt editor follows.
 - **CI/CD** GitHub Actions: static analysis on pull requests (**ESLint** +
   `web-ext lint`), **CodeQL** security scanning, and a release workflow that
   packages the extension into a zip, creates a GitHub Release on version tags

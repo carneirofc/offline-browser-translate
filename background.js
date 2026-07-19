@@ -843,15 +843,35 @@ async function describeImage(srcUrl) {
         if (!provider) throw new Error('Could not determine the provider for the vision model.');
     }
     const imageDataUrl = await fetchImageAsDataUrl(srcUrl);
+    // Raw base64 (no `data:` prefix): sent as-is to Ollama, and hashed for the
+    // cache key so the key tracks the image *bytes*, not its srcUrl.
+    const imageBase64 = imageDataUrl.replace(/^data:[^;]*;base64,/, '');
 
-    const targetLangName = getLanguageName(settings.targetLanguage || 'en');
+    const targetLanguage = settings.targetLanguage || 'en';
+    const targetLangName = getLanguageName(targetLanguage);
     const promptTemplate = settings.describePrompt || DEFAULT_DESCRIBE_PROMPT;
     const prompt = promptTemplate.replace(/{{targetLanguage}}/g, targetLangName);
 
+    // Serve a cached description when the same image was already analyzed with the
+    // same model + target language. Honors the user's cacheMode (off = no caching,
+    // same as translation). cacheKey/cache* come from cache.js, unchanged.
+    const cacheEnabled = settings.cacheMode !== 'off'
+        && typeof cacheGetMany === 'function' && typeof cacheKey === 'function';
+    const describeKey = cacheEnabled
+        ? cacheKey(modelId, '', targetLanguage, 'describe', hashString(imageBase64))
+        : null;
+    if (cacheEnabled) {
+        try {
+            const found = await cacheGetMany([describeKey]);
+            const hit = found.get(describeKey);
+            if (hit !== undefined) return hit;
+        } catch (e) {
+            debugWarn('[Background] describe cache read failed:', e && e.message);
+        }
+    }
+
     let text;
     if (provider === 'ollama') {
-        // Ollama wants the raw base64 payload, not the full `data:` URL.
-        const imageBase64 = imageDataUrl.replace(/^data:[^;]*;base64,/, '');
         text = await callOllamaVision(settings, modelId, prompt, imageBase64);
     } else {
         const baseUrl = provider === 'llamacpp' ? settings.llamacppUrl : settings.lmstudioUrl;
@@ -859,7 +879,14 @@ async function describeImage(srcUrl) {
         text = await callOpenAIVision(baseUrl, label, settings, modelId, prompt, imageDataUrl);
     }
     if (!text || !text.trim()) throw new Error('The model returned an empty response.');
-    return text.trim();
+    const result = text.trim();
+
+    // Awaited so an MV3 service worker isn't torn down before the write commits.
+    if (cacheEnabled) {
+        try { await cacheSetMany([[describeKey, result]]); }
+        catch (e) { debugWarn('[Background] describe cache write failed:', e && e.message); }
+    }
+    return result;
 }
 
 // Ensure content.js is present in a tab before messaging it. PING first (cheap,
