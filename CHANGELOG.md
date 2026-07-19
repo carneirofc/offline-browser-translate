@@ -25,7 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read or encoded, the feature errors out instead of sending an empty or malformed
   payload. Cross-origin images request the optional `<all_urls>` permission on
   demand. Descriptions are cached (when the cache is enabled) keyed by the image
-  bytes, model, and target language, so re-describing the same picture is instant.
+  bytes, model, target language, and prompt, so re-describing the same picture is
+  instant while editing the prompt still produces a fresh description.
   The options page has a dedicated **Image Description** section with a
   vision-model picker (or "same as preferred model") and an editable prompt with
   a reset.

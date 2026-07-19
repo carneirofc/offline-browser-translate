@@ -858,12 +858,14 @@ async function describeImage(srcUrl) {
     const prompt = promptTemplate.replace(/{{targetLanguage}}/g, targetLangName);
 
     // Serve a cached description when the same image was already analyzed with the
-    // same model + target language. Honors the user's cacheMode (off = no caching,
-    // same as translation). cacheKey/cache* come from cache.js, unchanged.
+    // same model, target language, and prompt. Honors the user's cacheMode (off =
+    // no caching, same as translation). cacheKey/cache* come from cache.js, unchanged.
+    // The resolved prompt is folded into the format token so editing describePrompt
+    // (or the default changing) doesn't serve a stale description from the old prompt.
     const cacheEnabled = settings.cacheMode !== 'off'
         && typeof cacheGetMany === 'function' && typeof cacheKey === 'function';
     const describeKey = cacheEnabled
-        ? cacheKey(modelId, '', targetLanguage, 'describe', hashString(imageBase64))
+        ? cacheKey(modelId, '', targetLanguage, `describe:${hashString(prompt)}`, hashString(imageBase64))
         : null;
     if (cacheEnabled) {
         try {
