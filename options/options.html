@@ -26,8 +26,9 @@
                         <option value="auto">Auto-detect</option>
                         <option value="ollama">Ollama</option>
                         <option value="lmstudio">LM Studio</option>
+                        <option value="llamacpp">llama.cpp</option>
                     </select>
-                    <p class="hint">Auto-detect will try both providers and use whichever responds first.</p>
+                    <p class="hint">Auto-detect will try all providers and use whichever responds first.</p>
                 </div>
 
                 <div class="form-row">
@@ -39,6 +40,11 @@
                     <div class="form-group">
                         <label for="lmstudioUrl">LM Studio URL</label>
                         <input type="text" id="lmstudioUrl" placeholder="http://localhost:1234">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="llamacppUrl">llama.cpp URL</label>
+                        <input type="text" id="llamacppUrl" placeholder="http://localhost:8080">
                     </div>
                 </div>
 

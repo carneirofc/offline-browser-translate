@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS = {
     provider: 'auto',
     ollamaUrl: 'http://localhost:11434',
     lmstudioUrl: 'http://localhost:1234',
+    llamacppUrl: 'http://localhost:8080',
     selectedModel: '',
     targetLanguage: 'en',
     sourceLanguage: 'auto',
@@ -60,6 +61,7 @@ const elements = {
     providerSelect: document.getElementById('providerSelect'),
     ollamaUrl: document.getElementById('ollamaUrl'),
     lmstudioUrl: document.getElementById('lmstudioUrl'),
+    llamacppUrl: document.getElementById('llamacppUrl'),
     maxTokens: document.getElementById('maxTokens'),
     maxItems: document.getElementById('maxItems'),
     temperature: document.getElementById('temperature'),
@@ -574,6 +576,7 @@ function applySettingsToUI() {
     elements.providerSelect.value = currentSettings.provider;
     elements.ollamaUrl.value = currentSettings.ollamaUrl;
     elements.lmstudioUrl.value = currentSettings.lmstudioUrl;
+    elements.llamacppUrl.value = currentSettings.llamacppUrl;
     elements.maxTokens.value = currentSettings.maxTokensPerBatch;
     elements.maxItems.value = currentSettings.maxItemsPerBatch || 8;
     elements.temperature.value = currentSettings.temperature;
@@ -599,9 +602,9 @@ async function checkProviders() {
         const response = await browserAPI.runtime.sendMessage({ type: 'DETECT_PROVIDERS' });
         
         // Resolve active provider using setting or currently selected model's provider
-        const providerSetting = currentSettings.provider; // 'auto', 'ollama', 'lmstudio'
+        const providerSetting = currentSettings.provider; // 'auto', 'ollama', 'lmstudio', 'llamacpp'
         const selectedModelProvider = modelPicker.getSelectedProvider();
-        
+
         let activeProvider = providerSetting;
         if (activeProvider === 'auto' && selectedModelProvider) {
             activeProvider = selectedModelProvider;
@@ -609,11 +612,12 @@ async function checkProviders() {
 
         let connected = false;
         let blocked = false;
-        let blockedType = ''; // 'ollama' or 'lmstudio'
+        let blockedType = ''; // 'ollama', 'lmstudio', or 'llamacpp'
         const connectedProviders = [];
 
         if (response.ollama) connectedProviders.push('Ollama');
         if (response.lmstudio) connectedProviders.push('LMStudio');
+        if (response.llamacpp) connectedProviders.push('llama.cpp');
 
         if (activeProvider === 'ollama') {
             connected = response.ollama;
@@ -623,12 +627,16 @@ async function checkProviders() {
             connected = response.lmstudio;
             blocked = response.lmstudio_blocked;
             blockedType = 'lmstudio';
+        } else if (activeProvider === 'llamacpp') {
+            connected = response.llamacpp;
+            blocked = response.llamacpp_blocked;
+            blockedType = 'llamacpp';
         } else {
             // 'auto' mode with no specific model selected yet
             connected = connectedProviders.length > 0;
             if (!connected) {
-                blocked = response.ollama_blocked || response.lmstudio_blocked;
-                blockedType = response.ollama_blocked ? 'ollama' : 'lmstudio';
+                blocked = response.ollama_blocked || response.lmstudio_blocked || response.llamacpp_blocked;
+                blockedType = response.ollama_blocked ? 'ollama' : (response.lmstudio_blocked ? 'lmstudio' : 'llamacpp');
             }
         }
 
@@ -641,9 +649,15 @@ async function checkProviders() {
             statusDot.className = 'status-dot error';
             statusWrapper.title = blockedType === 'ollama'
                 ? 'Ollama is running but blocking the extension (CORS)'
-                : 'LMStudio is running but blocking the extension (CORS)';
+                : blockedType === 'lmstudio'
+                    ? 'LMStudio is running but blocking the extension (CORS)'
+                    : 'llama.cpp server is running but blocking the extension (CORS)';
             providersAvailable = false;
-            showSetupBanner(blockedType === 'ollama' ? 'cors-blocked-ollama' : 'cors-blocked-lmstudio');
+            showSetupBanner(
+                blockedType === 'ollama' ? 'cors-blocked-ollama'
+                    : blockedType === 'lmstudio' ? 'cors-blocked-lmstudio'
+                        : 'cors-blocked-llamacpp'
+            );
         } else {
             statusDot.className = 'status-dot error';
             statusWrapper.title = 'No providers found';
@@ -693,11 +707,18 @@ function bannerHTML(type) {
             <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Click the refresh button above when done.</div>
         `;
     }
+    if (type === 'cors-blocked-llamacpp') {
+        return `
+            <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">llama.cpp server is blocking the extension</div>
+            <div>llama-server is running, but its <code style="background: var(--bg1, #2b2b2b); padding: 1px 4px; border-radius: 3px;">--cors-origins</code> setting does not allow requests from this extension.</div>
+            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Restart llama-server with <code style="background: var(--bg1, #2b2b2b); padding: 1px 4px; border-radius: 3px;">--cors-origins "*"</code> (the default) or add this extension's origin explicitly. Click the refresh button above when done.</div>
+        `;
+    }
     return `
         <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">No LLM provider detected</div>
         <div>To use this extension, you need a local LLM server running:</div>
         <ol style="margin: 6px 0 2px 18px; padding: 0;">
-            <li>Install <a href="https://ollama.com" target="_blank" style="color: var(--accent, #a7c080);">Ollama</a> or <a href="https://lmstudio.ai" target="_blank" style="color: var(--accent, #a7c080);">LMStudio</a></li>
+            <li>Install <a href="https://ollama.com" target="_blank" style="color: var(--accent, #a7c080);">Ollama</a>, <a href="https://lmstudio.ai" target="_blank" style="color: var(--accent, #a7c080);">LMStudio</a>, or <a href="https://github.com/ggml-org/llama.cpp" target="_blank" style="color: var(--accent, #a7c080);">llama.cpp</a></li>
             <li>Load a translation model (e.g. <code style="background: var(--bg1, #2b2b2b); padding: 1px 4px; border-radius: 3px;">ollama pull translategemma</code>)</li>
             <li>Click the refresh button above</li>
         </ol>
@@ -758,8 +779,12 @@ async function loadModels(forceRefresh = false) {
             if (providersAvailable) {
                 // If any provider is blocked by CORS, prioritize showing the CORS banner
                 const detectResponse = await browserAPI.runtime.sendMessage({ type: 'DETECT_PROVIDERS' }).catch(() => ({}));
-                if (detectResponse.ollama_blocked || detectResponse.lmstudio_blocked) {
-                    showSetupBanner(detectResponse.ollama_blocked ? 'cors-blocked-ollama' : 'cors-blocked-lmstudio');
+                if (detectResponse.ollama_blocked || detectResponse.lmstudio_blocked || detectResponse.llamacpp_blocked) {
+                    showSetupBanner(
+                        detectResponse.ollama_blocked ? 'cors-blocked-ollama'
+                            : detectResponse.lmstudio_blocked ? 'cors-blocked-lmstudio'
+                                : 'cors-blocked-llamacpp'
+                    );
                 } else {
                     showSetupBanner('no-models');
                 }
@@ -797,6 +822,7 @@ async function saveCurrentSettings() {
         provider: elements.providerSelect.value,
         ollamaUrl: elements.ollamaUrl.value,
         lmstudioUrl: elements.lmstudioUrl.value,
+        llamacppUrl: elements.llamacppUrl.value,
         selectedModel: modelPicker.getValue(),
         pinnedModels: [...modelPicker.pinned],
         targetLanguage: langPicker.getValue(),
@@ -840,7 +866,7 @@ async function startTranslation() {
     }
 
     if (!providersAvailable) {
-        showToast('No LLM provider running. Start Ollama or LMStudio first.', 'error');
+        showToast('No LLM provider running. Start Ollama, LMStudio, or llama.cpp first.', 'error');
         return;
     }
 
@@ -1025,7 +1051,8 @@ function setupEventListeners() {
         // Must run inside this click gesture, before any other awaits.
         const granted = await ensureHostPermissions([
             elements.ollamaUrl.value,
-            elements.lmstudioUrl.value
+            elements.lmstudioUrl.value,
+            elements.llamacppUrl.value
         ]);
         await saveCurrentSettings();
         if (!granted) {

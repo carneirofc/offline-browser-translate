@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS = {
     provider: 'auto',
     ollamaUrl: 'http://localhost:11434',
     lmstudioUrl: 'http://localhost:1234',
+    llamacppUrl: 'http://localhost:8080',
     selectedModel: '',
     targetLanguage: 'en',
     sourceLanguage: 'auto',
@@ -74,6 +75,7 @@ const elements = {
     providerSelect: document.getElementById('providerSelect'),
     ollamaUrl: document.getElementById('ollamaUrl'),
     lmstudioUrl: document.getElementById('lmstudioUrl'),
+    llamacppUrl: document.getElementById('llamacppUrl'),
     modelSelect: document.getElementById('modelSelect'),
     refreshModels: document.getElementById('refreshModels'),
     sourceLanguage: document.getElementById('sourceLanguage'),
@@ -295,6 +297,7 @@ function applySettingsToUI() {
     elements.providerSelect.value = currentSettings.provider;
     elements.ollamaUrl.value = currentSettings.ollamaUrl;
     elements.lmstudioUrl.value = currentSettings.lmstudioUrl;
+    elements.llamacppUrl.value = currentSettings.llamacppUrl;
     elements.sourceLanguage.value = currentSettings.sourceLanguage || 'auto';
     elements.targetLanguage.value = currentSettings.targetLanguage;
     elements.requestFormat.value = currentSettings.requestFormat;
@@ -385,6 +388,7 @@ async function saveCurrentSettings() {
         provider: elements.providerSelect.value,
         ollamaUrl: elements.ollamaUrl.value,
         lmstudioUrl: elements.lmstudioUrl.value,
+        llamacppUrl: elements.llamacppUrl.value,
         selectedModel: elements.modelSelect?.value || currentSettings.selectedModel,
         sourceLanguage: elements.sourceLanguage.value,
         targetLanguage: elements.targetLanguage.value,
@@ -471,7 +475,8 @@ function setupEventListeners() {
         // Must run inside this click gesture, before any other awaits.
         const granted = await ensureHostPermissions([
             elements.ollamaUrl.value,
-            elements.lmstudioUrl.value
+            elements.lmstudioUrl.value,
+            elements.llamacppUrl.value
         ]);
         await saveCurrentSettings();
         if (!granted) {

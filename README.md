@@ -2,13 +2,13 @@
   <img src="assets/logo.png" width="48" valign="middle"> Local LLM Translator
 </h1>
 
-A privacy-focused browser extension that translates web pages using local LLMs (Ollama or LMStudio). **Your data never leaves your machine.**
+A privacy-focused browser extension that translates web pages using local LLMs (Ollama, LMStudio, or llama.cpp). **Your data never leaves your machine.**
 
 [![Get the Add-on](https://extensionworkshop.com/assets/img/documentation/publish/get-the-addon-178x60px.dad84b42.png)](https://addons.mozilla.org/en-GB/firefox/addon/local-llm-translator/)
 
 ## Features
 
-- 🔒 **100% Private** - All translations happen on your local machine via Ollama or LMStudio
+- 🔒 **100% Private** - All translations happen on your local machine via Ollama, LMStudio, or llama.cpp
 - 🎯 **Smart Prioritization** - Visible content and headings are translated first
 - 🌍 **Many Languages** - Supports many many languages :3
 - ⚡ **Translation Cache** - Optional: translate identical text once and reuse it (great for forums). Off by default; stored locally with a session-only or persistent mode
@@ -19,6 +19,7 @@ You need one of these running locally:
 
 - **[Ollama](https://ollama.ai/)** (default: `http://localhost:11434`)
 - **[LMStudio](https://lmstudio.ai/)** (default: `http://localhost:1234`)
+- **[llama.cpp](https://github.com/ggml-org/llama.cpp)** (`llama-server`, default: `http://localhost:8080`)
 
 With a translation-capable model loaded (e.g. `TranslateGemma`, `tencent.hunyuan-mt`, `qwen3`, etc.)
 
@@ -72,8 +73,8 @@ Click **Advanced Settings** to configure:
 
 | Setting | Description |
 |---------|-------------|
-| Provider | Auto-detect, Ollama only, or LMStudio only |
-| URLs | Custom endpoints for Ollama/LMStudio |
+| Provider | Auto-detect, Ollama only, LMStudio only, or llama.cpp only |
+| URLs | Custom endpoints for Ollama/LMStudio/llama.cpp |
 | Max tokens/items per batch | Control batch sizes |
 | Temperature | Model creativity (lower = more consistent) |
 | Request Format (*work in progress*) | Default JSON, Hunyuan-MT, Simple, or Custom |

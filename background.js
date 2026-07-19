@@ -16,9 +16,10 @@ if (typeof importScripts === 'function') {
 // ============================================================================
 
 const DEFAULT_SETTINGS = {
-    provider: 'auto', // 'auto', 'ollama', 'lmstudio'
+    provider: 'auto', // 'auto', 'ollama', 'lmstudio', 'llamacpp'
     ollamaUrl: 'http://localhost:11434',
     lmstudioUrl: 'http://localhost:1234',
+    llamacppUrl: 'http://localhost:8080',
     selectedModel: '',
     targetLanguage: 'en',
     sourceLanguage: 'auto', // 'auto' = detect from page, or specific code
@@ -117,8 +118,8 @@ async function getSettings() {
 // Provider Detection & Model Listing
 // ============================================================================
 
-async function detectProviders(ollamaUrl, lmstudioUrl) {
-    const results = { ollama: false, ollama_blocked: false, lmstudio: false, lmstudio_blocked: false };
+async function detectProviders(ollamaUrl, lmstudioUrl, llamacppUrl) {
+    const results = { ollama: false, ollama_blocked: false, lmstudio: false, lmstudio_blocked: false, llamacpp: false, llamacpp_blocked: false };
 
     try {
         const controller = new AbortController();
@@ -174,6 +175,32 @@ async function detectProviders(ollamaUrl, lmstudioUrl) {
         }
     }
 
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
+        const response = await fetch(`${llamacppUrl}/v1/models`, {
+            method: 'GET',
+            signal: controller.signal
+        });
+        clearTimeout(timeout);
+        results.llamacpp = response.ok;
+    } catch (e) {
+        // Try a no-cors fetch to see if server is running but CORS is blocking the response
+        try {
+            const controller2 = new AbortController();
+            const timeout2 = setTimeout(() => controller2.abort(), 2000);
+            await fetch(`${llamacppUrl}/v1/models`, {
+                method: 'GET',
+                mode: 'no-cors',
+                signal: controller2.signal
+            });
+            clearTimeout(timeout2);
+            results.llamacpp_blocked = true;
+        } catch (_) {
+            results.llamacpp = false;
+        }
+    }
+
     return results;
 }
 
@@ -209,6 +236,22 @@ async function listLMStudioModels(url) {
     }
 }
 
+async function listLlamaCppModels(url) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    try {
+        const response = await fetch(`${url}/v1/models`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error('Failed to fetch llama.cpp models');
+        const data = await response.json();
+        return (data.data || []).map(m => ({ id: m.id, name: m.id, provider: 'llamacpp' }));
+    } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') throw new Error('llama.cpp model listing timed out');
+        throw e;
+    }
+}
+
 async function listModels(settings, useCache = true) {
     // Return cached models if available and not expired
     if (useCache && cachedModels && (Date.now() - modelsCacheTime < MODEL_CACHE_TTL)) {
@@ -233,6 +276,15 @@ async function listModels(settings, useCache = true) {
             models.push(...ollamaModels);
         } catch (e) {
             if (provider === 'ollama') throw e;
+        }
+    }
+
+    if (provider === 'llamacpp' || provider === 'auto') {
+        try {
+            const llamacppModels = await listLlamaCppModels(settings.llamacppUrl);
+            models.push(...llamacppModels);
+        } catch (e) {
+            if (provider === 'llamacpp') throw e;
         }
     }
 
@@ -595,10 +647,73 @@ async function callLMStudio(settings, modelId, systemPrompt, userPrompt, jsonOut
     return content;
 }
 
+async function callLlamaCpp(settings, modelId, systemPrompt, userPrompt, jsonOutput) {
+    const messages = [];
+
+    if (systemPrompt) {
+        messages.push({ role: 'system', content: systemPrompt });
+    }
+    messages.push({ role: 'user', content: userPrompt });
+
+    const body = {
+        model: modelId,
+        messages,
+        temperature: settings.temperature || 0.3,
+        stream: false
+    };
+
+    if (jsonOutput) {
+        body.response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "translation_response",
+                "strict": true,
+                "schema": TRANSLATION_JSON_SCHEMA
+            }
+        };
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
+    let response;
+    try {
+        response = await fetch(`${settings.llamacppUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal
+        });
+    } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') throw new Error('llama.cpp request timed out after 5 minutes');
+        if (e instanceof TypeError) {
+            throw new Error('Failed to connect to llama.cpp server. The extension is being blocked by CORS or the server is offline. You need to start llama-server with CORS enabled.');
+        }
+        throw e;
+    }
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`llama.cpp error: ${error}`);
+    }
+
+    const data = await response.json();
+    let content = data.choices[0]?.message?.content || '';
+
+    // Clean up markdown code blocks if present
+    content = content.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+
+    return content;
+}
+
 // Low-level call to whichever provider, returning the raw text response.
 async function callProvider(provider, settings, modelId, systemPrompt, userPrompt, jsonOutput) {
     if (provider === 'ollama') {
         return callOllama(settings, modelId, systemPrompt, userPrompt, jsonOutput);
+    }
+    if (provider === 'llamacpp') {
+        return callLlamaCpp(settings, modelId, systemPrompt, userPrompt, jsonOutput);
     }
     return callLMStudio(settings, modelId, systemPrompt, userPrompt, jsonOutput);
 }
@@ -842,7 +957,8 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 case 'DETECT_PROVIDERS':
                     const providers = await detectProviders(
                         settings.ollamaUrl,
-                        settings.lmstudioUrl
+                        settings.lmstudioUrl,
+                        settings.llamacppUrl
                     );
                     sendResponse(providers);
                     break;
