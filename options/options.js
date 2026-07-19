@@ -75,6 +75,7 @@ const elements = {
     temperature: document.getElementById('temperature'),
     temperatureValue: document.getElementById('temperatureValue'),
     useStructuredOutput: document.getElementById('useStructuredOutput'),
+    streamTranslations: document.getElementById('streamTranslations'),
     plainTextFallback: document.getElementById('plainTextFallback'),
     showGlow: document.getElementById('showGlow'),
     cacheMode: document.getElementById('cacheMode'),
@@ -342,6 +343,7 @@ function applySettingsToUI() {
         }
     }
     elements.useStructuredOutput.checked = currentSettings.useStructuredOutput;
+    if (elements.streamTranslations) elements.streamTranslations.checked = currentSettings.streamTranslations !== false;
     if (elements.plainTextFallback) elements.plainTextFallback.checked = currentSettings.plainTextFallback !== false;
     elements.showGlow.checked = currentSettings.showGlow !== false;
     if (elements.cacheMode) elements.cacheMode.value = currentSettings.cacheMode || 'off';
@@ -449,6 +451,7 @@ async function saveCurrentSettings() {
         maxConcurrentRequests: parseInt(elements.maxConcurrent?.value) || 4,
         temperature: parseFloat(elements.temperature.value) || 0.3,
         useStructuredOutput: elements.useStructuredOutput.checked,
+        streamTranslations: elements.streamTranslations ? elements.streamTranslations.checked : true,
         plainTextFallback: elements.plainTextFallback ? elements.plainTextFallback.checked : true,
         showGlow: elements.showGlow.checked,
         cacheMode: elements.cacheMode ? elements.cacheMode.value : 'off',

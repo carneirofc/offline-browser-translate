@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Streaming translations (typewriter effect)**: on by default, each segment's
+  translation is streamed from the local LLM and typed into the page as tokens
+  arrive, so the page fills in progressively (highest-priority visible segments
+  first, several at once) instead of jumping a batch at a time. Works against
+  Ollama's streaming endpoint (newline-delimited JSON) and the OpenAI-compatible
+  streaming endpoints of LM Studio and llama.cpp (Server-Sent Events), reusing
+  the existing dedup, cache, and provider-error handling. Cached segments appear
+  instantly; freshly streamed ones are cached. A **Stream translations** toggle
+  in Options → Output Settings restores the previous whole-batch behaviour.
 - **Describe a local image from the translator page**: a new section on the
   full translator page lets you drop, paste, or pick a local image file and get a
   detailed description in your target language from your local vision model —

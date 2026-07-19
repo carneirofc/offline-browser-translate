@@ -28,6 +28,10 @@ const DEFAULT_SETTINGS = {
     requestFormat: 'auto', // 'auto' (detect from model), 'default', 'translategemma', 'hunyuan', 'simple', 'custom'
     temperature: 0.3,
     useStructuredOutput: true,
+    // Stream each segment's translation and type it into the page as tokens
+    // arrive (typewriter effect). One plain-text request per unique segment.
+    // Turn off to restore the batched-JSON path exactly.
+    streamTranslations: true,
     maxOutputRetries: 2,    // Extra attempts when the model returns malformed/missing translations
     plainTextFallback: true, // After JSON retries fail, translate the failed items one-by-one as plain text
     showGlow: false,

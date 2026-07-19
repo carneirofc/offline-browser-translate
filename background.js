@@ -520,6 +520,193 @@ async function callProvider(provider, settings, modelId, systemPrompt, userPromp
 }
 
 // ============================================================================
+// Streaming provider calls (issue #20)
+// ============================================================================
+// Plain-text streaming siblings of the calls above. Each reads the response
+// body incrementally and invokes onDelta(token) as tokens arrive, buffering
+// across network reads so a token split over a chunk boundary is reassembled
+// before a line/event is parsed. They return the full accumulated text.
+
+/**
+ * Stream from Ollama's /api/generate (newline-delimited JSON, each object
+ * carrying an incremental `response`, terminated by `{ "done": true }`).
+ * @param {object} settings
+ * @param {string} modelId
+ * @param {string} systemPrompt
+ * @param {string} userPrompt
+ * @param {(token:string)=>void} onDelta
+ * @returns {Promise<string>} the full response text
+ */
+async function callOllamaStream(settings, modelId, systemPrompt, userPrompt, onDelta) {
+    const body = {
+        model: modelId,
+        prompt: systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt,
+        stream: true,
+        keep_alive: '30m',
+        options: {}
+    };
+    if (settings.temperature !== undefined) body.options.temperature = settings.temperature;
+    if (settings.numCtx) body.options.num_ctx = settings.numCtx;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
+    let response;
+    try {
+        response = await fetch(`${settings.ollamaUrl}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal
+        });
+    } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') throw new Error('Ollama request timed out after 5 minutes');
+        if (e instanceof TypeError) throw new Error('Failed to connect to Ollama. The server is offline or blocking the extension via CORS.');
+        throw e;
+    }
+    if (!response.ok) {
+        clearTimeout(timeoutId);
+        if (response.status === 403) throw new Error('Ollama returned 403 Forbidden. The extension is being blocked by Ollama\'s CORS policy. You need to enable CORS in Ollama.');
+        const error = await response.text();
+        throw new Error(`Ollama error (${response.status}): ${error || '(empty response)'}`);
+    }
+
+    let full = '';
+    try {
+        await readLines(response, (line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return false;
+            let obj;
+            try { obj = JSON.parse(trimmed); } catch (e) { return false; }
+            if (typeof obj.response === 'string' && obj.response) {
+                full += obj.response;
+                onDelta(obj.response);
+            }
+            return obj.done === true; // stop
+        });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+    return full;
+}
+
+/**
+ * Stream from an OpenAI-compatible /v1/chat/completions endpoint (LM Studio,
+ * llama.cpp) — Server-Sent Events: `data: {json}` lines carrying
+ * choices[0].delta.content, terminated by `data: [DONE]`.
+ * @param {string} baseUrl
+ * @param {string} providerLabel
+ * @param {object} settings
+ * @param {string} modelId
+ * @param {string} systemPrompt
+ * @param {string} userPrompt
+ * @param {(token:string)=>void} onDelta
+ * @returns {Promise<string>} the full response text
+ */
+async function callOpenAIStream(baseUrl, providerLabel, settings, modelId, systemPrompt, userPrompt, onDelta) {
+    const messages = [];
+    if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+    messages.push({ role: 'user', content: userPrompt });
+
+    const body = {
+        model: modelId,
+        messages,
+        temperature: settings.temperature || 0.3,
+        stream: true
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
+    let response;
+    try {
+        response = await fetch(`${baseUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal
+        });
+    } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') throw new Error(`${providerLabel} request timed out after 5 minutes`);
+        if (e instanceof TypeError) throw new Error(`Failed to connect to ${providerLabel}. The server is offline or blocking the extension via CORS.`);
+        throw e;
+    }
+    if (!response.ok) {
+        clearTimeout(timeoutId);
+        const error = await response.text();
+        throw new Error(`${providerLabel} error: ${error}`);
+    }
+
+    let full = '';
+    try {
+        await readLines(response, (line) => {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) return false;
+            const payload = trimmed.slice(5).trim();
+            if (payload === '[DONE]') return true; // stop
+            let obj;
+            try { obj = JSON.parse(payload); } catch (e) { return false; }
+            const delta = obj.choices?.[0]?.delta?.content;
+            if (typeof delta === 'string' && delta) {
+                full += delta;
+                onDelta(delta);
+            }
+            return false;
+        });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+    return full;
+}
+
+/**
+ * Read a fetch Response body as text and invoke onLine for each complete,
+ * newline-terminated line, buffering the trailing partial across reads. onLine
+ * returns true to stop early (terminator seen).
+ * @param {Response} response
+ * @param {(line:string)=>boolean} onLine
+ * @returns {Promise<void>}
+ */
+async function readLines(response, onLine) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let nl;
+        while ((nl = buffer.indexOf('\n')) !== -1) {
+            const line = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 1);
+            if (onLine(line)) { try { await reader.cancel(); } catch (e) { /* ignore */ } return; }
+        }
+    }
+    // Flush any trailing content that never got a newline.
+    if (buffer && onLine(buffer)) { try { await reader.cancel(); } catch (e) { /* ignore */ } }
+}
+
+/**
+ * Dispatch a streaming call to the resolved provider.
+ * @param {string} provider
+ * @param {object} settings
+ * @param {string} modelId
+ * @param {string} systemPrompt
+ * @param {string} userPrompt
+ * @param {(token:string)=>void} onDelta
+ * @returns {Promise<string>}
+ */
+async function callProviderStream(provider, settings, modelId, systemPrompt, userPrompt, onDelta) {
+    if (provider === 'ollama') {
+        return callOllamaStream(settings, modelId, systemPrompt, userPrompt, onDelta);
+    }
+    if (provider === 'llamacpp') {
+        return callOpenAIStream(settings.llamacppUrl, 'llama.cpp', settings, modelId, systemPrompt, userPrompt, onDelta);
+    }
+    return callOpenAIStream(settings.lmstudioUrl, 'LMStudio', settings, modelId, systemPrompt, userPrompt, onDelta);
+}
+
+// ============================================================================
 // Image describe & interpret
 // ============================================================================
 
@@ -955,6 +1142,137 @@ async function translate(textItems, targetLanguage, settings) {
     return { translations, fromCache: fromCacheItems, total: textItems.length, cacheActive: cacheEnabled };
 }
 
+/**
+ * Streaming counterpart to translate(): one plain-text streaming request per
+ * unique segment, emitting the growing translation to `emit(id, textSoFar)` so
+ * the content script can type it into the page. Reuses the same provider/format
+ * resolution, source-language handling, and group/dedup/cache machinery, and
+ * returns the same summary shape. Cache hits emit immediately; misses stream,
+ * are cleaned on completion, and are written to the cache.
+ * @param {Array<{id:*, text:string}>} textItems
+ * @param {string} targetLanguage
+ * @param {object} settings
+ * @param {(id:*, textSoFar:string)=>void} emit
+ * @returns {Promise<{translations:Array, fromCache:number, total:number, cacheActive:boolean}>}
+ */
+async function translateStream(textItems, targetLanguage, settings, emit) {
+    const modelId = settings.selectedModel;
+    if (!modelId) throw new Error('No model selected');
+
+    let provider = settings.provider;
+    if (provider === 'auto') {
+        provider = await detectModelProvider(modelId, settings);
+        if (!provider) throw new Error('Could not detect model provider');
+    }
+
+    const format = resolveRequestFormat(settings, modelId);
+    const isPlainText = PLAIN_TEXT_FORMATS.has(format);
+    const template = PROMPT_TEMPLATES[format] || PROMPT_TEMPLATES.default;
+
+    const targetLangName = getLanguageName(targetLanguage);
+    const explicitSource = (settings.sourceLanguage && settings.sourceLanguage !== 'auto')
+        ? (normalizeLangCode(settings.sourceLanguage) || settings.sourceLanguage)
+        : '';
+    const sourceLangCode = explicitSource || 'en';
+    const sourceLangName = explicitSource ? getLanguageName(explicitSource) : 'the source language';
+    const baseVars = {
+        targetLanguage: targetLangName,
+        sourceLang: sourceLangName,
+        sourceCode: sourceLangCode.toUpperCase(),
+        targetLang: targetLangName,
+        targetCode: targetLanguage.toUpperCase()
+    };
+
+    // Build the single-item plain-text prompt. Model-specific plain-text formats
+    // (TranslateGemma, Hunyuan) keep their required template; everything else uses
+    // a generic "output only the translation" prompt.
+    const genericSystem = `You are a professional translator. Translate the user's text into ${targetLangName}. Output ONLY the translation, with no quotes, labels, JSON, or commentary.`;
+    const buildStreamPrompt = (text) => {
+        if (isPlainText) {
+            const vars = { ...baseVars, texts: text };
+            return {
+                system: buildPrompt(template.system || '', vars),
+                user: buildPrompt(template.user || '{{texts}}', vars)
+            };
+        }
+        return { system: genericSystem, user: text };
+    };
+
+    // Cache/dedup — mirrors translate(), but the prompt signature marks the plain
+    // streaming path so streamed and batched-JSON entries never collide.
+    const cacheEnabled = settings.cacheMode !== 'off'
+        && typeof cacheGetMany === 'function' && typeof cacheKey === 'function';
+    const promptSig = hashString(['stream', format, String(settings.temperature), sourceLangCode].join(' '));
+    const keyFor = cacheEnabled
+        ? (text) => cacheKey(modelId, sourceLangCode, targetLanguage, promptSig, text)
+        : (text) => text;
+
+    const groups = new Map(); // key -> { key, item, ids: [] }
+    for (const item of textItems) {
+        const k = keyFor(item.text);
+        const g = groups.get(k);
+        if (g) g.ids.push(item.id);
+        else groups.set(k, { key: k, item, ids: [item.id] });
+    }
+
+    const results = new Map();
+    let fromCacheItems = 0;
+    let missGroups;
+    if (cacheEnabled) {
+        try {
+            const found = await cacheGetMany([...groups.keys()]);
+            missGroups = [];
+            for (const g of groups.values()) {
+                const cached = found.get(g.key);
+                if (cached !== undefined) {
+                    for (const id of g.ids) { results.set(id, cached); emit(id, cached); }
+                    fromCacheItems += g.ids.length;
+                } else {
+                    missGroups.push(g);
+                }
+            }
+        } catch (e) {
+            debugWarn('[Background] stream cache read failed:', e && e.message);
+            missGroups = [...groups.values()];
+        }
+    } else {
+        missGroups = [...groups.values()];
+    }
+
+    // Stream each unique miss sequentially (parallelism comes from the content
+    // script running several batches at once).
+    const cacheEntries = [];
+    for (const g of missGroups) {
+        const { system, user } = buildStreamPrompt(g.item.text);
+        let acc = '';
+        try {
+            await callProviderStream(provider, settings, modelId, system, user, (delta) => {
+                acc += delta;
+                const live = cleanTranslationText(acc);
+                for (const id of g.ids) emit(id, live);
+            });
+            const final = cleanTranslationText((acc || '').trim());
+            if (final && !isSuspiciousTranslation(final)) {
+                for (const id of g.ids) { results.set(id, final); emit(id, final); }
+                if (cacheEnabled) cacheEntries.push([g.key, final]);
+            }
+        } catch (e) {
+            debugWarn(`[Background] stream failed for a segment:`, e && e.message);
+            // Leave the original text in place (no final emit).
+        }
+    }
+
+    if (cacheEnabled && cacheEntries.length) {
+        try { await cacheSetMany(cacheEntries); }
+        catch (e) { debugWarn('[Background] stream cache write failed:', e && e.message); }
+    }
+
+    const translations = textItems.map(item => results.has(item.id)
+        ? { id: item.id, text: results.get(item.id) }
+        : { id: item.id, error: 'translation failed' });
+    return { translations, fromCache: fromCacheItems, total: textItems.length, cacheActive: cacheEnabled };
+}
+
 // ============================================================================
 // Message Handler
 // ============================================================================
@@ -1038,11 +1356,41 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         };
                     }
 
-                    const result = await translate(
-                        message.texts,
-                        message.targetLanguage,
-                        settingsWithSource
-                    );
+                    // Stream when enabled and we can push deltas back to the
+                    // originating tab; otherwise use the stable batched-JSON path.
+                    const streamTabId = sender && sender.tab && sender.tab.id;
+                    let result;
+                    if (settingsWithSource.streamTranslations !== false && streamTabId !== undefined && streamTabId !== null) {
+                        // Coalesce deltas so we don't flood the messaging channel:
+                        // buffer id->latest-text and flush on a short timer.
+                        const pending = new Map();
+                        let flushTimer = null;
+                        const flush = () => {
+                            flushTimer = null;
+                            if (pending.size === 0) return;
+                            const translations = [...pending.entries()].map(([id, text]) => ({ id, text }));
+                            pending.clear();
+                            browserAPI.tabs.sendMessage(streamTabId, { type: 'PARTIAL_TRANSLATION', translations }).catch(() => {});
+                        };
+                        const emit = (id, text) => {
+                            pending.set(id, text);
+                            if (!flushTimer) flushTimer = setTimeout(flush, 60);
+                        };
+                        result = await translateStream(
+                            message.texts,
+                            message.targetLanguage,
+                            settingsWithSource,
+                            emit
+                        );
+                        if (flushTimer) clearTimeout(flushTimer);
+                        flush(); // push any remaining deltas before resolving
+                    } else {
+                        result = await translate(
+                            message.texts,
+                            message.targetLanguage,
+                            settingsWithSource
+                        );
+                    }
                     sendResponse({
                         translations: result.translations,
                         fromCache: result.fromCache,

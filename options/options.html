@@ -179,9 +179,15 @@
                 <h2>Output Settings</h2>
 
                 <div class="form-group checkbox-group">
+                    <input type="checkbox" id="streamTranslations" checked>
+                    <label for="streamTranslations">Stream translations (typewriter effect)</label>
+                    <p class="hint">Type each translation into the page as the model produces it, so the page fills in progressively instead of jumping a batch at a time. Uses one request per segment. Turn off to restore whole-batch behaviour.</p>
+                </div>
+
+                <div class="form-group checkbox-group">
                     <input type="checkbox" id="useStructuredOutput" checked>
                     <label for="useStructuredOutput">Use structured JSON output</label>
-                    <p class="hint">Requests JSON format from the model. Disable if model struggles with JSON.</p>
+                    <p class="hint">Requests JSON format from the model. Disable if model struggles with JSON. (Not used while streaming is on.)</p>
                 </div>
 
                 <div class="form-group checkbox-group">
