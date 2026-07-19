@@ -298,8 +298,9 @@
             return translations;
         }
 
-        for (let i = 0; i < Math.min(response.split('\n').filter(l => l.trim()).length, expectedCount); i++) {
-            const line = response.split('\n').filter(l => l.trim())[i];
+        const nonEmptyLines = response.split('\n').filter(l => l.trim());
+        for (let i = 0; i < Math.min(nonEmptyLines.length, expectedCount); i++) {
+            const line = nonEmptyLines[i];
             const originalId = originalItems[i]?.id;
             if (originalId !== undefined) translations.push({ id: originalId, text: cleanTranslationText(line.trim()) });
         }

@@ -239,16 +239,28 @@ const blockElementIds = new Map();
 let nextBlockId = 0;
 
 /**
+ * Climb from an element to its nearest block-level ancestor (inclusive). Returns
+ * the block element, `document.body` if the walk reaches it without a match, or
+ * null for a null start. Shared by block batching and hover translation.
+ * @param {Element|null} startEl
+ * @returns {Element|null}
+ */
+function climbToBlockElement(startEl) {
+    let el = startEl;
+    while (el && el !== document.body && el.nodeType === Node.ELEMENT_NODE && !BLOCK_TAGS.has(el.tagName)) {
+        el = el.parentElement;
+    }
+    return el;
+}
+
+/**
  * Resolve the numeric id of the nearest block-level ancestor of a text node, so
  * segments in the same paragraph/list-item/cell share a block id for batching.
  * @param {Node} node a text node
  * @returns {number} stable block id for this run
  */
 function getBlockId(node) {
-    let el = node.parentElement;
-    while (el && el !== document.body && !BLOCK_TAGS.has(el.tagName)) {
-        el = el.parentElement;
-    }
+    const el = climbToBlockElement(node.parentElement);
     const key = el || node.parentElement || document.body;
     let id = blockElementIds.get(key);
     if (id === undefined) {
@@ -862,10 +874,7 @@ function hideHoverBubble() {
  * @returns {Element|null}
  */
 function getHoverBlockElement(target) {
-    let el = target;
-    while (el && el !== document.body && el.nodeType === Node.ELEMENT_NODE && !BLOCK_TAGS.has(el.tagName)) {
-        el = el.parentElement;
-    }
+    const el = climbToBlockElement(target);
     return (el && el !== document.body && el.nodeType === Node.ELEMENT_NODE) ? el : null;
 }
 
@@ -920,6 +929,12 @@ function onHoverMove(e) {
     }
     // Never react to hovering our own bubble.
     if (hoverBubbleHost && typeof e.composedPath === 'function' && e.composedPath().includes(hoverBubbleHost)) return;
+    // Mouse-out: moved off any block into empty space — dismiss promptly.
+    if (!getHoverBlockElement(e.target)) {
+        if (hoverDebounceTimer) clearTimeout(hoverDebounceTimer);
+        hideHoverBubble();
+        return;
+    }
     if (hoverDebounceTimer) clearTimeout(hoverDebounceTimer);
     const target = e.target;
     hoverDebounceTimer = setTimeout(() => translateHoverTarget(target), 180);
@@ -930,16 +945,27 @@ function onHoverKey(e) {
     if (e.key === 'Escape') hideHoverBubble();
 }
 
+/**
+ * Dismiss the bubble when the pointer leaves the document/window entirely
+ * (pointermove stops firing, so the mouse-out check in onHoverMove can't).
+ * @param {MouseEvent} e
+ */
+function onHoverLeave(e) {
+    if (!e.relatedTarget && !e.toElement) hideHoverBubble();
+}
+
 /** Attach/detach hover listeners to match the current hoverEnabled setting. */
 function applyHoverState() {
     if (hoverEnabled && !hoverListenersOn) {
         document.addEventListener('pointermove', onHoverMove, true);
         document.addEventListener('keydown', onHoverKey, true);
+        document.addEventListener('mouseout', onHoverLeave, true);
         window.addEventListener('scroll', hideHoverBubble, true);
         hoverListenersOn = true;
     } else if (!hoverEnabled && hoverListenersOn) {
         document.removeEventListener('pointermove', onHoverMove, true);
         document.removeEventListener('keydown', onHoverKey, true);
+        document.removeEventListener('mouseout', onHoverLeave, true);
         window.removeEventListener('scroll', hideHoverBubble, true);
         if (hoverDebounceTimer) clearTimeout(hoverDebounceTimer);
         hideHoverBubble();
