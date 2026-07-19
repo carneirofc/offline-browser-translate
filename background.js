@@ -6,42 +6,16 @@
 // Use browser API with chrome fallback
 const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
-// Import languages (for Service Worker context)
+// Import shared scripts (for Service Worker context). defaults.js defines the
+// shared DEFAULT_SETTINGS used across the background and all UI screens.
 if (typeof importScripts === 'function') {
-    importScripts('languages.js', 'cache.js');
+    importScripts('languages.js', 'cache.js', 'defaults.js');
 }
 
 // ============================================================================
 // Settings & Constants
 // ============================================================================
-
-const DEFAULT_SETTINGS = {
-    provider: 'auto', // 'auto', 'ollama', 'lmstudio', 'llamacpp'
-    ollamaUrl: 'http://localhost:11434',
-    lmstudioUrl: 'http://localhost:1234',
-    llamacppUrl: 'http://localhost:8080',
-    selectedModel: '',
-    targetLanguage: 'en',
-    sourceLanguage: 'auto', // 'auto' = detect from page, or specific code
-    maxTokensPerBatch: 2000,
-    maxItemsPerBatch: 8,
-    maxConcurrentRequests: 4, // 1-4 parallel requests (LMStudio 0.4.0+ supports up to 4)
-    useAdvanced: false,
-    customSystemPrompt: '',
-    customUserPromptTemplate: '',
-    requestFormat: 'auto', // 'auto' (detect from model), 'default', 'translategemma', 'hunyuan', 'simple', 'custom'
-    temperature: 0.3,
-    useStructuredOutput: true,
-    maxOutputRetries: 2,    // Extra attempts when the model returns malformed/missing translations
-    plainTextFallback: true, // After JSON retries fail, translate the failed items one-by-one as plain text
-    showGlow: false,
-    numCtx: 0,          // Ollama context window size (0 = model default)
-    // Translation cache: 'persistent' (kept across browser sessions), 'session'
-    // (kept until the browser is closed, then wiped), or 'off'. Off by default.
-    cacheMode: 'off',
-    debug: false,       // Enable verbose logging
-    floatingButton: false // Show floating translate button on text selection (requires <all_urls> permission)
-};
+// DEFAULT_SETTINGS is defined in defaults.js (single source of truth).
 
 let debugEnabled = false;
 function debugLog(...args) { if (debugEnabled) console.log(...args); }

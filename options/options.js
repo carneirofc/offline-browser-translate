@@ -5,28 +5,7 @@
 // Use browser API with chrome fallback for Firefox compatibility
 const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
-const DEFAULT_SETTINGS = {
-    provider: 'auto',
-    ollamaUrl: 'http://localhost:11434',
-    lmstudioUrl: 'http://localhost:1234',
-    llamacppUrl: 'http://localhost:8080',
-    selectedModel: '',
-    targetLanguage: 'en',
-    sourceLanguage: 'auto',
-    maxTokensPerBatch: 2000,
-    maxItemsPerBatch: 8,
-    maxConcurrentRequests: 4, // 1-4 parallel requests for LM Studio 0.4.0+
-    useAdvanced: false,
-    customSystemPrompt: '',
-    customUserPromptTemplate: '',
-    requestFormat: 'auto',
-    temperature: 0.3,
-    useStructuredOutput: true,
-    maxOutputRetries: 2,
-    plainTextFallback: true,
-    showGlow: false,  // Disabled by default
-    cacheMode: 'off'
-};
+// DEFAULT_SETTINGS is provided by defaults.js (loaded before this script).
 
 // Format descriptions
 const FORMAT_DESCRIPTIONS = {

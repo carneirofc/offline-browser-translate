@@ -39,6 +39,7 @@
     "scripts": [
       "languages.js",
       "cache.js",
+      "defaults.js",
       "background.js"
     ],
     "service_worker": "background.js"

@@ -12,25 +12,7 @@ const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
 const PINNED_LANGUAGES = ['en', 'es', 'fr', 'de', 'zh', 'ja'];
 
-const DEFAULT_SETTINGS = {
-    provider: 'auto',
-    ollamaUrl: 'http://localhost:11434',
-    lmstudioUrl: 'http://localhost:1234',
-    llamacppUrl: 'http://localhost:8080',
-    selectedModel: '',
-    targetLanguage: 'en',
-    sourceLanguage: 'auto',
-    maxTokensPerBatch: 2000,
-    maxItemsPerBatch: 8,
-    maxConcurrentRequests: 4,
-    useAdvanced: false,
-    customSystemPrompt: '',
-    customUserPromptTemplate: '',
-    requestFormat: 'auto',
-    temperature: 0.3,
-    useStructuredOutput: true,
-    showGlow: false
-};
+// DEFAULT_SETTINGS is provided by defaults.js (loaded before this script).
 
 // ============================================================================
 // State

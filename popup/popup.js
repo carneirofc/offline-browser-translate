@@ -5,34 +5,7 @@
 // Use browser API with chrome fallback for Firefox compatibility
 const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
-// Import default settings (kept in sync with background.js DEFAULT_SETTINGS)
-const DEFAULT_SETTINGS = {
-    provider: 'auto',
-    ollamaUrl: 'http://localhost:11434',
-    lmstudioUrl: 'http://localhost:1234',
-    llamacppUrl: 'http://localhost:8080',
-    selectedModel: '',
-    targetLanguage: 'en',
-    sourceLanguage: 'auto',
-    pinnedLanguages: [],
-    pinnedModels: [],
-    maxTokensPerBatch: 2000,
-    maxItemsPerBatch: 8,
-    maxConcurrentRequests: 4, // 1-4 parallel requests (LM Studio 0.4.0+ supports parallelism)
-    useAdvanced: false,
-    customSystemPrompt: '',
-    customUserPromptTemplate: '',
-    requestFormat: 'auto',
-    temperature: 0.3,
-    useStructuredOutput: true,
-    maxOutputRetries: 2,
-    plainTextFallback: true,
-    showGlow: true,
-    numCtx: 0,
-    cacheMode: 'off',
-    debug: false,
-    floatingButton: false
-};
+// DEFAULT_SETTINGS is provided by defaults.js (loaded before this script).
 
 // DOM Elements
 const elements = {

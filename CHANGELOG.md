@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README lint/CodeQL/release badges and a Releases download link.
 
 ### Changed
+- Single-sourced default settings into a shared `defaults.js` module, loaded by
+  the background service worker and every UI page. Removes the four hand-synced
+  `DEFAULT_SETTINGS` copies that had drifted (e.g. the popup defaulted "Show
+  Glow" on while every other screen defaulted it off), so a setting changed in
+  one screen is no longer silently overridden by a stale default elsewhere.
 - Unified branding to **Local LLM Translator** across the popup, translator, and
   options UIs (previously a mix of "Local Translator" / "Local LLM Translator").
 - Normalized the "LM Studio" product name across all UI strings (previously

@@ -1,10 +1,12 @@
 import js from '@eslint/js';
 import globals from 'globals';
 
-// Symbols declared at the top level of languages.js. It is loaded before the
-// other scripts in every HTML page (and concatenated ahead of background.js),
-// so consuming files reference these as shared globals.
+// Symbols declared at the top level of languages.js and defaults.js. They are
+// loaded before the other scripts in every HTML page (and concatenated ahead of
+// background.js), so consuming files reference these as shared globals.
 const sharedGlobals = {
+  // Defined in defaults.js — the single source of truth for default settings.
+  DEFAULT_SETTINGS: 'readonly',
   LANGUAGES: 'readonly',
   LOCAL_HOSTNAMES: 'readonly',
   MODEL_FORMAT_RULES: 'readonly',
