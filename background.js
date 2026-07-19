@@ -751,6 +751,50 @@ async function callOpenAIVision(baseUrl, providerLabel, settings, modelId, promp
     return data.choices?.[0]?.message?.content || '';
 }
 
+// Vision call for Ollama. Ollama's multimodal API does not use the OpenAI
+// `image_url` shape — the base64 image (no `data:` prefix) goes in the native
+// `images` array on /api/generate. Mirrors callOllama's error handling.
+async function callOllamaVision(settings, modelId, prompt, imageBase64) {
+    const body = {
+        model: modelId,
+        prompt,
+        images: [imageBase64],
+        stream: false,
+        keep_alive: '30m',
+        options: {}
+    };
+    if (settings.temperature !== undefined) body.options.temperature = settings.temperature;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
+    let response;
+    try {
+        response = await fetch(`${settings.ollamaUrl}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal
+        });
+    } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') throw new Error('Ollama request timed out after 5 minutes');
+        if (e instanceof TypeError) throw new Error('Failed to connect to Ollama. The server is offline or blocking the extension via CORS.');
+        throw e;
+    }
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+        if (response.status === 403) {
+            throw new Error('Ollama returned 403 Forbidden. The extension is being blocked by Ollama\'s CORS policy. You need to enable CORS in Ollama.');
+        }
+        const error = await response.text();
+        throw new Error(`Ollama error (${response.status}): ${error || '(empty response)'}`);
+    }
+
+    const data = await response.json();
+    return data.response || '';
+}
+
 // Encode a Blob as a base64 data: URL. Runs in the service worker (no FileReader),
 // so it reads the bytes via arrayBuffer() and base64-encodes with btoa in chunks
 // (String.fromCharCode.apply blows the arg limit on large images otherwise).
@@ -798,21 +842,22 @@ async function describeImage(srcUrl) {
         provider = await detectModelProvider(modelId, settings);
         if (!provider) throw new Error('Could not determine the provider for the vision model.');
     }
-    if (provider === 'ollama') {
-        // Ollama's multimodal API differs; support lands in a follow-up ticket.
-        throw new Error('Image description with Ollama is not supported yet. Select LM Studio or llama.cpp.');
-    }
-
     const imageDataUrl = await fetchImageAsDataUrl(srcUrl);
 
     const targetLangName = getLanguageName(settings.targetLanguage || 'en');
     const promptTemplate = settings.describePrompt || DEFAULT_DESCRIBE_PROMPT;
     const prompt = promptTemplate.replace(/{{targetLanguage}}/g, targetLangName);
 
-    const baseUrl = provider === 'llamacpp' ? settings.llamacppUrl : settings.lmstudioUrl;
-    const label = provider === 'llamacpp' ? 'llama.cpp' : 'LM Studio';
-
-    const text = await callOpenAIVision(baseUrl, label, settings, modelId, prompt, imageDataUrl);
+    let text;
+    if (provider === 'ollama') {
+        // Ollama wants the raw base64 payload, not the full `data:` URL.
+        const imageBase64 = imageDataUrl.replace(/^data:[^;]*;base64,/, '');
+        text = await callOllamaVision(settings, modelId, prompt, imageBase64);
+    } else {
+        const baseUrl = provider === 'llamacpp' ? settings.llamacppUrl : settings.lmstudioUrl;
+        const label = provider === 'llamacpp' ? 'llama.cpp' : 'LM Studio';
+        text = await callOpenAIVision(baseUrl, label, settings, modelId, prompt, imageDataUrl);
+    }
     if (!text || !text.trim()) throw new Error('The model returned an empty response.');
     return text.trim();
 }

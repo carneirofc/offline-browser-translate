@@ -16,10 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Describe & interpret images**: a new right-click context-menu item on images
   sends the picture to a vision-capable local model and shows a description +
   interpretation (written in your target language) in an on-page modal with a
-  Copy button. Works with the OpenAI-compatible providers (**LM Studio** and
-  **llama.cpp**); uses a new `visionModel` setting (falls back to the selected
-  model). Cross-origin images request the optional `<all_urls>` permission on
-  demand. Ollama support and an options-page picker/prompt editor follow.
+  Copy button. Works with all three local providers — **LM Studio** and
+  **llama.cpp** (OpenAI `image_url` shape) and **Ollama** (native `images`
+  field); uses a new `visionModel` setting (falls back to the selected model).
+  Cross-origin images request the optional `<all_urls>` permission on demand.
+  An options-page picker/prompt editor follows.
 - **CI/CD** GitHub Actions: static analysis on pull requests (**ESLint** +
   `web-ext lint`), **CodeQL** security scanning, and a release workflow that
   packages the extension into a zip, creates a GitHub Release on version tags
