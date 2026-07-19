@@ -29,26 +29,9 @@ const elements = {
     translateBtn: document.getElementById('translateBtn'),
     cancelBtn: document.getElementById('cancelBtn'),
     restoreBtn: document.getElementById('restoreBtn'),
-    toggleAdvanced: document.getElementById('toggleAdvanced'),
-    advancedSection: document.getElementById('advancedSection'),
-    providerSelect: document.getElementById('providerSelect'),
-    ollamaUrl: document.getElementById('ollamaUrl'),
-    lmstudioUrl: document.getElementById('lmstudioUrl'),
-    llamacppUrl: document.getElementById('llamacppUrl'),
-    maxTokens: document.getElementById('maxTokens'),
-    maxItems: document.getElementById('maxItems'),
-    temperature: document.getElementById('temperature'),
-    temperatureValue: document.getElementById('temperatureValue'),
     showGlow: document.getElementById('showGlow'),
-    cacheMode: document.getElementById('cacheMode'),
-    cacheBackendWarning: document.getElementById('cacheBackendWarning'),
-    cacheNewBadge: document.getElementById('cacheNewBadge'),
-    clearCache: document.getElementById('clearCache'),
-    cacheCount: document.getElementById('cacheCount'),
     floatingButton: document.getElementById('floatingButton'),
-    saveSettings: document.getElementById('saveSettings'),
     openOptions: document.getElementById('openOptions'),
-    resetSettings: document.getElementById('resetSettings'),
     toast: document.getElementById('toast')
 };
 
@@ -146,58 +129,10 @@ async function init() {
     await loadSettings();
     applySettingsToUI();
     setupEventListeners();
-    refreshCacheCount();
-    refreshCacheBackend();
-    initCacheNewBadge();
     await checkProviders();
     await loadModels();
     await checkTranslationStatus();
     await detectPageLanguage();
-}
-
-// Show a small "New" badge on the cache control until the user opens the
-// Advanced Settings (where it lives) for the first time.
-const CACHE_BADGE_SEEN_KEY = 'cacheBadgeSeen';
-function initCacheNewBadge() {
-    if (!elements.cacheNewBadge) return;
-    let seen = false;
-    try { seen = localStorage.getItem(CACHE_BADGE_SEEN_KEY) === '1'; } catch (e) { /* ignore */ }
-    elements.cacheNewBadge.hidden = seen;
-}
-function markCacheBadgeSeen() {
-    // Persist that the user has now opened Advanced Settings, but keep the badge
-    // visible for the rest of this session so they actually notice it. It won't
-    // show again the next time the popup is opened.
-    try { localStorage.setItem(CACHE_BADGE_SEEN_KEY, '1'); } catch (e) { /* ignore */ }
-}
-
-// Show how many translations are currently cached on the Clear-cache button.
-async function refreshCacheCount() {
-    if (!elements.cacheCount) return;
-    try {
-        const res = await browserAPI.runtime.sendMessage({ type: 'CACHE_COUNT' });
-        elements.cacheCount.textContent = (res && typeof res.count === 'number') ? res.count.toLocaleString() : '0';
-    } catch (e) {
-        elements.cacheCount.textContent = '0';
-    }
-}
-
-// Grey out "Keep across sessions" when the browser blocks IndexedDB (e.g. Mullvad),
-// since persistence can't work there; the in-memory session cache still does.
-async function refreshCacheBackend() {
-    if (!elements.cacheMode) return;
-    let persistent = true;
-    try {
-        const res = await browserAPI.runtime.sendMessage({ type: 'CACHE_BACKEND' });
-        persistent = !(res && res.persistent === false);
-    } catch (e) { /* assume available on error */ }
-
-    const opt = elements.cacheMode.querySelector('option[value="persistent"]');
-    if (opt) opt.disabled = !persistent;
-    if (elements.cacheBackendWarning) elements.cacheBackendWarning.hidden = persistent;
-    if (!persistent && elements.cacheMode.value === 'persistent') {
-        elements.cacheMode.value = 'session';
-    }
 }
 
 // ============================================================================
@@ -546,16 +481,7 @@ function applySettingsToUI() {
     langPicker.setPinned(currentSettings.pinnedLanguages || []);
     langPicker.setValue(currentSettings.targetLanguage);
     modelPicker.setPinned(currentSettings.pinnedModels || []);
-    elements.providerSelect.value = currentSettings.provider;
-    elements.ollamaUrl.value = currentSettings.ollamaUrl;
-    elements.lmstudioUrl.value = currentSettings.lmstudioUrl;
-    elements.llamacppUrl.value = currentSettings.llamacppUrl;
-    elements.maxTokens.value = currentSettings.maxTokensPerBatch;
-    elements.maxItems.value = currentSettings.maxItemsPerBatch || 8;
-    elements.temperature.value = currentSettings.temperature;
-    elements.temperatureValue.textContent = currentSettings.temperature;
     elements.showGlow.checked = currentSettings.showGlow !== false;
-    if (elements.cacheMode) elements.cacheMode.value = currentSettings.cacheMode || 'off';
     if (elements.floatingButton) elements.floatingButton.checked = !!currentSettings.floatingButton;
 
     // Restore source language override
@@ -790,26 +716,21 @@ async function loadModels(forceRefresh = false) {
 
 // Save current settings
 async function saveCurrentSettings() {
+    // Spread the current settings and override ONLY the fields the slim popup
+    // owns. Provider, server URLs, token/temperature and cache mode now live on
+    // the options page; keeping them out of this write means the background merge
+    // preserves whatever was configured there instead of clobbering it with
+    // now-deleted popup fields.
     currentSettings = {
         ...currentSettings,
-        provider: elements.providerSelect.value,
-        ollamaUrl: elements.ollamaUrl.value,
-        lmstudioUrl: elements.lmstudioUrl.value,
-        llamacppUrl: elements.llamacppUrl.value,
         selectedModel: modelPicker.getValue(),
         pinnedModels: [...modelPicker.pinned],
         targetLanguage: langPicker.getValue(),
         pinnedLanguages: langPicker.pinned,
-        maxTokensPerBatch: parseInt(elements.maxTokens.value) || 2000,
-        maxItemsPerBatch: parseInt(elements.maxItems.value) || 8,
-        temperature: parseFloat(elements.temperature.value) || 0.3,
         showGlow: elements.showGlow.checked,
-        cacheMode: elements.cacheMode ? elements.cacheMode.value : 'off',
-        // Save the source language override preference
-        sourceLanguage: elements.sourceLangOverride ? elements.sourceLangOverride.value : 'auto'
-        // Request format, structured-output and custom prompts are managed in
-        // the full Settings page; we omit them here so the background merge keeps
-        // whatever was configured there.
+        sourceLanguage: elements.sourceLangOverride
+            ? elements.sourceLangOverride.value
+            : (currentSettings.sourceLanguage || 'auto')
     };
 
     await browserAPI.runtime.sendMessage({
@@ -963,7 +884,6 @@ function setupEventListeners() {
     browserAPI.runtime.onMessage.addListener((message) => {
         if (message && message.type === 'TRANSLATION_COMPLETE') {
             resetTranslateButton();
-            refreshCacheCount();
         }
     });
 
@@ -980,15 +900,6 @@ function setupEventListeners() {
     elements.refreshModels.addEventListener('click', async () => {
         await checkProviders();
         await loadModels(true); // Force refresh, bypass cache
-    });
-
-    // Toggle advanced settings
-    elements.toggleAdvanced.addEventListener('click', () => {
-        const isHidden = elements.advancedSection.hidden;
-        elements.advancedSection.hidden = !isHidden;
-        elements.toggleAdvanced.classList.toggle('active', !isHidden);
-        // Opening Advanced Settings counts as "seeing" the new cache option.
-        if (isHidden) markCacheBadgeSeen();
     });
 
     // Floating button toggle — permission required to enable
@@ -1012,30 +923,6 @@ function setupEventListeners() {
             await browserAPI.runtime.sendMessage({ type: 'SAVE_SETTINGS', settings: currentSettings });
         });
     }
-
-    // Temperature slider
-    elements.temperature.addEventListener('input', (e) => {
-        elements.temperatureValue.textContent = e.target.value;
-    });
-
-    // Save settings button
-    elements.saveSettings.addEventListener('click', async () => {
-        // Request host permission for any non-localhost server URL (opt-in).
-        // Must run inside this click gesture, before any other awaits.
-        const granted = await ensureHostPermissions([
-            elements.ollamaUrl.value,
-            elements.lmstudioUrl.value,
-            elements.llamacppUrl.value
-        ]);
-        await saveCurrentSettings();
-        if (!granted) {
-            showToast('Saved, but permission for the custom server was denied — remote models won\'t load until you allow it.', 'error', 5000);
-        } else {
-            showToast('Settings saved!');
-        }
-        await checkProviders();
-        await loadModels();
-    });
 
     // (Target-language changes are handled by langPicker.onChange.)
     // (Model changes are handled by modelPicker.onChange.)
@@ -1073,96 +960,7 @@ function setupEventListeners() {
             browserAPI.tabs.create({ url: browserAPI.runtime.getURL('translator/translator.html') });
         });
     }
-
-    // Reset settings to defaults
-    if (elements.resetSettings) {
-        elements.resetSettings.addEventListener('click', async () => {
-            currentSettings = { ...DEFAULT_SETTINGS };
-            await browserAPI.runtime.sendMessage({
-                type: 'SAVE_SETTINGS',
-                settings: currentSettings
-            });
-            applySettingsToUI();
-            showToast('Settings reset to defaults');
-        });
-    }
-
-    // Clear the translation cache
-    if (elements.clearCache) {
-        elements.clearCache.addEventListener('click', async (e) => {
-            e.preventDefault();
-            try {
-                await browserAPI.runtime.sendMessage({ type: 'CLEAR_CACHE' });
-                await refreshCacheCount();
-                showToast('Translation cache cleared');
-            } catch (err) {
-                showToast('Failed to clear cache', 'error');
-            }
-        });
-    }
 }
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', init);
-
-// ============================================================================
-// Resizable popup — drag the corner grip to adjust width and height.
-// Uses Pointer Capture so the drag keeps working even when the cursor moves
-// outside the popup window quickly. Size is persisted to localStorage.
-// ============================================================================
-document.addEventListener('DOMContentLoaded', () => {
-    const handle = document.querySelector('.resize-handle');
-    if (!handle) return;
-
-    const MIN_W = 260, MAX_W = 720, MIN_H = 280;
-    const STORAGE_KEY_W = 'popupWidth';
-    const STORAGE_KEY_H = 'popupHeight';
-
-    // Restore previously saved size
-    const savedW = localStorage.getItem(STORAGE_KEY_W);
-    const savedH = localStorage.getItem(STORAGE_KEY_H);
-    if (savedW) document.body.style.width = Math.max(MIN_W, Math.min(MAX_W, +savedW)) + 'px';
-    if (savedH) document.body.style.height = Math.max(MIN_H, +savedH) + 'px';
-
-    let dragging = false;
-    let startX, startY, startW, startH;
-    let rafId = null;       // pending animation frame
-    let pendingW, pendingH; // latest values to commit on next frame
-
-    handle.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        dragging = true;
-        startX = e.clientX;
-        startY = e.clientY;
-        startW = document.body.offsetWidth;
-        startH = document.body.offsetHeight;
-        handle.setPointerCapture(e.pointerId); // keeps events firing even outside window
-        handle.classList.add('dragging');
-    });
-
-    handle.addEventListener('pointermove', (e) => {
-        if (!dragging) return;
-        // Compute the desired size but don't write to the DOM yet
-        pendingW = Math.max(MIN_W, Math.min(MAX_W, startW + (startX - e.clientX)));
-        pendingH = Math.max(MIN_H, startH + (e.clientY - startY));
-        // Schedule a single DOM write per animation frame (drops redundant intermediate events)
-        if (!rafId) {
-            rafId = requestAnimationFrame(() => {
-                document.body.style.width  = pendingW + 'px';
-                document.body.style.height = pendingH + 'px';
-                rafId = null;
-            });
-        }
-    });
-
-    const stopDrag = () => {
-        if (!dragging) return;
-        dragging = false;
-        handle.classList.remove('dragging');
-        localStorage.setItem(STORAGE_KEY_W, document.body.offsetWidth);
-        localStorage.setItem(STORAGE_KEY_H, document.body.offsetHeight);
-    };
-
-    handle.addEventListener('pointerup', stopDrag);
-    handle.addEventListener('pointercancel', stopDrag);
-});

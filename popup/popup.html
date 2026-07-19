@@ -5,12 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Local LLM Translator</title>
+  <link rel="stylesheet" href="../native.css">
   <link rel="stylesheet" href="popup.css">
-  <style>
-    [hidden] {
-      display: none !important;
-    }
-  </style>
 </head>
 
 <body>
@@ -80,86 +76,17 @@
       </div>
     </section>
 
-    <section class="settings-toggle">
-      <button id="toggleAdvanced" class="toggle-btn">
-        <span>Advanced Settings</span>
-        <span class="toggle-arrow">▼</span>
-      </button>
-    </section>
-
-    <section class="advanced-settings" id="advancedSection" hidden>
-      <div class="form-group floating-btn-group">
-        <div class="checkbox-row">
-          <input type="checkbox" id="floatingButton">
-          <label for="floatingButton">Floating translate button</label>
-        </div>
-        <p class="floating-btn-hint">Shows a translate button next to selected text. <strong>Requires permission to run on all websites.</strong></p>
+    <section class="quick-options">
+      <div class="checkbox-row">
+        <input type="checkbox" id="floatingButton">
+        <label for="floatingButton">Floating translate button</label>
       </div>
+      <p class="quick-hint">Shows a translate button next to selected text. <strong>Requires permission to run on all websites.</strong></p>
 
-      <hr class="section-divider">
-
-      <div class="form-group">
-        <label for="providerSelect">Provider</label>
-        <select id="providerSelect">
-          <option value="auto">Auto-detect</option>
-          <option value="ollama">Ollama</option>
-          <option value="lmstudio">LM Studio</option>
-          <option value="llamacpp">llama.cpp</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="ollamaUrl">Ollama URL</label>
-        <input type="text" id="ollamaUrl" placeholder="http://localhost:11434">
-      </div>
-
-      <div class="form-group">
-        <label for="lmstudioUrl">LM Studio URL</label>
-        <input type="text" id="lmstudioUrl" placeholder="http://localhost:1234">
-      </div>
-
-      <div class="form-group">
-        <label for="llamacppUrl">llama.cpp URL</label>
-        <input type="text" id="llamacppUrl" placeholder="http://localhost:8080">
-      </div>
-
-      <div class="form-group">
-        <label for="maxTokens">Max tokens per batch</label>
-        <input type="number" id="maxTokens" min="100" max="8000" step="100">
-      </div>
-
-      <div class="form-group">
-        <label for="maxItems">Max items per batch (for live feel)</label>
-        <input type="number" id="maxItems" min="1" max="50" step="1" value="8">
-      </div>
-
-      <div class="form-group">
-        <label for="temperature">Temperature</label>
-        <input type="range" id="temperature" min="0" max="1" step="0.1">
-        <span id="temperatureValue">0.3</span>
-      </div>
-
-      <div class="form-group checkbox-group">
+      <div class="checkbox-row">
         <input type="checkbox" id="showGlow" checked>
         <label for="showGlow">Show translation glow effect</label>
       </div>
-
-      <div class="form-group">
-        <label for="cacheMode">Translation cache <span class="new-badge" id="cacheNewBadge" hidden>New</span></label>
-        <select id="cacheMode">
-          <option value="off">Don't cache</option>
-          <option value="session">Until I close the browser</option>
-          <option value="persistent">Keep across sessions</option>
-        </select>
-        <p class="floating-btn-hint" id="cacheBackendWarning" hidden>⚠️ This browser doesn't support keeping the cache across sessions.</p>
-        <button id="clearCache" class="text-btn" title="Delete all cached translations">Clear cache (<span id="cacheCount">…</span>)</button>
-      </div>
-
-      <div class="button-row">
-        <button id="saveSettings" class="primary-btn small">Save Settings</button>
-        <button id="openOptions" class="secondary-btn small" title="Open full settings page">⚙️ More Settings</button>
-      </div>
-      <button id="resetSettings" class="text-btn">Reset to defaults</button>
     </section>
 
     <!-- Toast Notification -->
@@ -169,23 +96,12 @@
     </div>
 
     <footer>
-      <button id="openTranslator" class="secondary-btn" style="width:100%; margin-bottom:8px;">
-        📝 Open Translator
-      </button>
+      <div class="footer-links">
+        <button id="openOptions" class="secondary-btn" title="Open full settings page">⚙️ More Settings</button>
+        <button id="openTranslator" class="secondary-btn">📝 Open Translator</button>
+      </div>
       <p>All translations stay on your device</p>
     </footer>
-  </div>
-
-  <!-- Resize handle — drag to make the popup wider/taller -->
-  <div class="resize-handle" aria-hidden="true" title="Drag to resize">
-    <svg viewBox="0 0 12 12" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="2"  cy="2"  r="1.3"/>
-      <circle cx="2"  cy="6"  r="1.3"/>
-      <circle cx="2"  cy="10" r="1.3"/>
-      <circle cx="6"  cy="6"  r="1.3"/>
-      <circle cx="6"  cy="10" r="1.3"/>
-      <circle cx="10" cy="10" r="1.3"/>
-    </svg>
   </div>
 
   <script src="../languages.js"></script>
