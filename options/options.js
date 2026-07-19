@@ -83,6 +83,8 @@ const elements = {
     cacheCount: document.getElementById('cacheCount'),
     debugLogging: document.getElementById('debugLogging'),
     floatingButton: document.getElementById('floatingButton'),
+    hoverEnabled: document.getElementById('hoverEnabled'),
+    hoverModifier: document.getElementById('hoverModifier'),
     customPromptsSection: document.getElementById('customPromptsSection'),
     customSystem: document.getElementById('customSystem'),
     customUser: document.getElementById('customUser'),
@@ -345,6 +347,8 @@ function applySettingsToUI() {
     if (elements.cacheMode) elements.cacheMode.value = currentSettings.cacheMode || 'off';
     elements.debugLogging.checked = !!currentSettings.debug;
     elements.floatingButton.checked = !!currentSettings.floatingButton;
+    if (elements.hoverEnabled) elements.hoverEnabled.checked = !!currentSettings.hoverEnabled;
+    if (elements.hoverModifier) elements.hoverModifier.value = currentSettings.hoverModifier || 'Alt';
     elements.customSystem.value = currentSettings.customSystemPrompt || '';
     elements.customUser.value = currentSettings.customUserPromptTemplate || '';
 
@@ -450,6 +454,8 @@ async function saveCurrentSettings() {
         cacheMode: elements.cacheMode ? elements.cacheMode.value : 'off',
         debug: elements.debugLogging.checked,
         floatingButton: elements.floatingButton.checked,
+        hoverEnabled: elements.hoverEnabled ? elements.hoverEnabled.checked : false,
+        hoverModifier: elements.hoverModifier ? elements.hoverModifier.value : 'Alt',
         // Save custom prompts from the new prompt editor
         customSystemPrompt: elements.systemPrompt?.value || elements.customSystem?.value || '',
         customUserPromptTemplate: elements.userPrompt?.value || elements.customUser?.value || '',
@@ -622,22 +628,42 @@ function setupEventListeners() {
 document.addEventListener('DOMContentLoaded', init);
 
 // ============================================================================
-// Floating button permission management
+// All-URLs content-script permission management
 // ============================================================================
+//
+// Both the floating button and hover-to-translate run from the persistent,
+// all-URLs content script and share the same <all_urls> permission. The two
+// toggles therefore share one enable/disable helper: the content script is
+// registered while *either* feature is on, and only unregistered (and the
+// permission removed) once *both* are off — so turning one off never breaks the
+// other.
 
-async function enableFloatingButton() {
+/** @returns {boolean} whether any all-URLs feature toggle is currently on. */
+function anyAllUrlsFeatureEnabled() {
+    return !!(elements.floatingButton && elements.floatingButton.checked)
+        || !!(elements.hoverEnabled && elements.hoverEnabled.checked);
+}
+
+/**
+ * Request the <all_urls> permission (must run inside a user gesture) and
+ * register the content script.
+ * @returns {Promise<boolean>} true if granted and registered.
+ */
+async function enableAllUrlsFeature() {
     const granted = await browserAPI.permissions.request({ origins: ['<all_urls>'] });
-    if (!granted) {
-        elements.floatingButton.checked = false;
-        showToast('Permission denied — floating button not enabled', 'error');
-        return false;
-    }
-    // Delegate registration to background so the path resolves from the extension root
+    if (!granted) return false;
+    // Delegate registration to background so the path resolves from the extension root.
     await browserAPI.runtime.sendMessage({ type: 'REGISTER_CONTENT_SCRIPT' });
     return true;
 }
 
-async function disableFloatingButton() {
+/**
+ * Tear down the content script and drop the <all_urls> permission, but only if
+ * no all-URLs feature remains enabled.
+ * @returns {Promise<void>}
+ */
+async function disableAllUrlsFeatureIfUnused() {
+    if (anyAllUrlsFeatureEnabled()) return;
     await browserAPI.runtime.sendMessage({ type: 'UNREGISTER_CONTENT_SCRIPT' });
     try {
         await browserAPI.permissions.remove({ origins: ['<all_urls>'] });
@@ -649,14 +675,44 @@ async function disableFloatingButton() {
 document.addEventListener('DOMContentLoaded', () => {
     elements.floatingButton.addEventListener('change', async (e) => {
         if (e.target.checked) {
-            const ok = await enableFloatingButton();
-            if (ok) showToast('Floating button enabled — reload pages to activate');
+            const ok = await enableAllUrlsFeature();
+            if (ok) {
+                showToast('Floating button enabled — reload pages to activate');
+            } else {
+                elements.floatingButton.checked = false;
+                showToast('Permission denied — floating button not enabled', 'error');
+            }
         } else {
-            await disableFloatingButton();
-            showToast('Floating button disabled — permission removed');
+            await disableAllUrlsFeatureIfUnused();
+            showToast('Floating button disabled');
         }
-        // Persist the setting immediately without waiting for Save
         currentSettings.floatingButton = elements.floatingButton.checked;
         await browserAPI.runtime.sendMessage({ type: 'SAVE_SETTINGS', settings: currentSettings });
     });
+
+    if (elements.hoverEnabled) {
+        elements.hoverEnabled.addEventListener('change', async () => {
+            if (elements.hoverEnabled.checked) {
+                const ok = await enableAllUrlsFeature();
+                if (ok) {
+                    showToast('Hover to translate enabled — reload pages to activate');
+                } else {
+                    elements.hoverEnabled.checked = false;
+                    showToast('Permission denied — hover to translate not enabled', 'error');
+                }
+            } else {
+                await disableAllUrlsFeatureIfUnused();
+                showToast('Hover to translate disabled');
+            }
+            currentSettings.hoverEnabled = elements.hoverEnabled.checked;
+            await browserAPI.runtime.sendMessage({ type: 'SAVE_SETTINGS', settings: currentSettings });
+        });
+    }
+
+    if (elements.hoverModifier) {
+        elements.hoverModifier.addEventListener('change', async () => {
+            currentSettings.hoverModifier = elements.hoverModifier.value;
+            await browserAPI.runtime.sendMessage({ type: 'SAVE_SETTINGS', settings: currentSettings });
+        });
+    }
 });

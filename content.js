@@ -29,6 +29,9 @@ browserAPI.runtime.sendMessage({ type: 'GET_SETTINGS' }).then(r => {
         if (Number.isInteger(r.settings.maxItemsPerBatch)) maxItemsPerBatch = r.settings.maxItemsPerBatch;
         if (Number.isInteger(r.settings.maxTokensPerBatch)) maxTokensPerBatch = r.settings.maxTokensPerBatch;
         if (typeof r.settings.sourceLanguage === 'string') sourceLanguageSetting = r.settings.sourceLanguage;
+        hoverEnabled = !!r.settings.hoverEnabled;
+        if (typeof r.settings.hoverModifier === 'string') hoverModifier = r.settings.hoverModifier;
+        applyHoverState();
     }
 }).catch(() => {});
 
@@ -48,6 +51,11 @@ browserAPI.storage.onChanged.addListener((changes, area) => {
     if (Number.isInteger(newSettings?.maxItemsPerBatch)) maxItemsPerBatch = newSettings.maxItemsPerBatch;
     if (Number.isInteger(newSettings?.maxTokensPerBatch)) maxTokensPerBatch = newSettings.maxTokensPerBatch;
     if (typeof newSettings?.sourceLanguage === 'string') sourceLanguageSetting = newSettings.sourceLanguage;
+    if (typeof newSettings?.hoverModifier === 'string') hoverModifier = newSettings.hoverModifier;
+    if (typeof newSettings?.hoverEnabled === 'boolean') {
+        hoverEnabled = newSettings.hoverEnabled;
+        applyHoverState();
+    }
 });
 
 // Track text nodes and their segments
@@ -63,6 +71,8 @@ let maxConcurrentRequests = 4; // Default parallel requests (LMStudio 0.4.0+ sup
 let maxItemsPerBatch = 8;      // Max text segments per translation request (block-aware batching)
 let maxTokensPerBatch = 2000;  // Token budget per translation request
 let sourceLanguageSetting = 'auto'; // User's source-language setting ('auto' = detect)
+let hoverEnabled = false;           // Hover-to-translate opt-in (issue #6)
+let hoverModifier = 'Alt';          // Modifier gating hover translation
 let autoTranslateEnabled = false;
 let showGlow = false; // Setting for glow effect (disabled by default)
 let mutationObserver = null;
@@ -738,6 +748,191 @@ function showDescribeError(errorMessage) {
     if (describeSpinnerTimer) { clearInterval(describeSpinnerTimer); describeSpinnerTimer = null; }
     describeBodyEl.textContent = errorMessage || 'Something went wrong.';
     describeBodyEl.style.color = '#e67e80';
+}
+
+// ============================================================================
+// Hover-to-translate (issue #6)
+// ============================================================================
+// Hold a configurable modifier and hover a paragraph to see its translation in
+// a floating bubble. Non-destructive (the page DOM is never modified), gated by
+// the modifier (no requests fire otherwise), and it reuses the same background
+// TRANSLATE pipeline + cache as full-page translation, so repeat hovers are
+// instant.
+
+const HOVER_MODIFIER_PROP = { Alt: 'altKey', Control: 'ctrlKey', Shift: 'shiftKey', Meta: 'metaKey' };
+let hoverBubbleHost = null;
+let hoverBubbleBody = null;
+let hoverDebounceTimer = null;
+let hoverBlockEl = null;
+let hoverReqToken = 0;
+let hoverListenersOn = false;
+
+/**
+ * @param {MouseEvent} e
+ * @returns {boolean} whether the configured hover modifier is held.
+ */
+function isHoverModifierHeld(e) {
+    const prop = HOVER_MODIFIER_PROP[hoverModifier] || 'altKey';
+    return !!e[prop];
+}
+
+/** Lazily build the shadow-DOM bubble used to render hover translations. */
+function ensureHoverBubble() {
+    if (hoverBubbleHost) return;
+    hoverBubbleHost = document.createElement('div');
+    hoverBubbleHost.setAttribute('data-llm-translator-hover', '');
+    hoverBubbleHost.style.cssText = 'all:initial; position:fixed; z-index:2147483646; display:none;';
+    const shadow = hoverBubbleHost.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = `
+        :host { color-scheme: light dark; }
+        .bubble {
+            max-width: 360px; max-height: 40vh; overflow:auto;
+            font: 13px/1.5 system-ui, -apple-system, sans-serif;
+            background: Canvas; color: CanvasText;
+            border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+            border-radius: 8px; padding: 8px 10px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+            white-space: pre-wrap; word-break: break-word;
+        }
+        .bubble.loading { opacity: 0.8; font-style: italic; }
+        .bubble.error { color: #e67e80; }
+    `;
+    hoverBubbleBody = document.createElement('div');
+    hoverBubbleBody.className = 'bubble';
+    shadow.append(style, hoverBubbleBody);
+    (document.documentElement || document.body).appendChild(hoverBubbleHost);
+}
+
+/**
+ * Set bubble text/state.
+ * @param {string} text
+ * @param {boolean} [loading]
+ * @param {boolean} [isError]
+ */
+function showHoverContent(text, loading = false, isError = false) {
+    ensureHoverBubble();
+    hoverBubbleBody.className = 'bubble' + (loading ? ' loading' : '') + (isError ? ' error' : '');
+    hoverBubbleBody.textContent = text;
+    hoverBubbleHost.style.display = 'block';
+}
+
+/**
+ * Anchor the bubble just below the hovered block, flipping above / clamping to
+ * the viewport when there isn't room.
+ * @param {DOMRect} rect
+ */
+function positionHoverBubble(rect) {
+    if (!hoverBubbleHost) return;
+    const margin = 6;
+    const bubbleRect = hoverBubbleHost.getBoundingClientRect();
+    let top = rect.bottom + margin;
+    if (top + bubbleRect.height > window.innerHeight && rect.top - margin - bubbleRect.height > 0) {
+        top = rect.top - margin - bubbleRect.height;
+    }
+    top = Math.max(margin, Math.min(top, window.innerHeight - bubbleRect.height - margin));
+    let left = rect.left;
+    left = Math.max(margin, Math.min(left, window.innerWidth - bubbleRect.width - margin));
+    hoverBubbleHost.style.top = `${top}px`;
+    hoverBubbleHost.style.left = `${left}px`;
+}
+
+/** Hide the bubble and invalidate any in-flight hover request. */
+function hideHoverBubble() {
+    if (hoverBubbleHost) hoverBubbleHost.style.display = 'none';
+    hoverBlockEl = null;
+    hoverReqToken++;
+}
+
+/**
+ * Nearest block-level ancestor of an event target, or null.
+ * @param {EventTarget} target
+ * @returns {Element|null}
+ */
+function getHoverBlockElement(target) {
+    let el = target;
+    while (el && el !== document.body && el.nodeType === Node.ELEMENT_NODE && !BLOCK_TAGS.has(el.tagName)) {
+        el = el.parentElement;
+    }
+    return (el && el !== document.body && el.nodeType === Node.ELEMENT_NODE) ? el : null;
+}
+
+/**
+ * Translate the block under the cursor and show it in the bubble. Reuses the
+ * background TRANSLATE pipeline (source detection + cache).
+ * @param {EventTarget} target
+ */
+async function translateHoverTarget(target) {
+    const block = getHoverBlockElement(target);
+    if (!block) { hideHoverBubble(); return; }
+    if (block === hoverBlockEl) return; // already showing this block
+    const text = (block.innerText || '').trim().slice(0, 4000);
+    if (!text || !isTranslatableText(text)) { hideHoverBubble(); return; }
+
+    hoverBlockEl = block;
+    const token = ++hoverReqToken;
+    showHoverContent('Translating…', true);
+    positionHoverBubble(block.getBoundingClientRect());
+
+    try {
+        const resolved = resolveSourceLanguage(sourceLanguageSetting, text, getDeclaredPageLanguage());
+        const resp = await browserAPI.runtime.sendMessage({
+            type: 'TRANSLATE',
+            texts: [{ id: 0, text }],
+            targetLanguage: currentTargetLanguage,
+            sourceLanguage: resolved
+        });
+        if (token !== hoverReqToken) return; // superseded by a newer hover
+        if (!resp || resp.error) {
+            showHoverContent(`Translation failed: ${resp?.error || 'no response from background'}`, false, true);
+            return;
+        }
+        const translated = resp.translations?.[0]?.text;
+        if (!translated) {
+            showHoverContent('No translation returned.', false, true);
+            return;
+        }
+        showHoverContent(translated, false);
+        positionHoverBubble(block.getBoundingClientRect());
+    } catch (err) {
+        if (token === hoverReqToken) showHoverContent(`Translation failed: ${err.message}`, false, true);
+    }
+}
+
+/** Modifier-gated, debounced hover handler. Fires nothing without the modifier. */
+function onHoverMove(e) {
+    if (!hoverEnabled) return;
+    if (!isHoverModifierHeld(e)) {
+        if (hoverBubbleHost && hoverBubbleHost.style.display !== 'none') hideHoverBubble();
+        return;
+    }
+    // Never react to hovering our own bubble.
+    if (hoverBubbleHost && typeof e.composedPath === 'function' && e.composedPath().includes(hoverBubbleHost)) return;
+    if (hoverDebounceTimer) clearTimeout(hoverDebounceTimer);
+    const target = e.target;
+    hoverDebounceTimer = setTimeout(() => translateHoverTarget(target), 180);
+}
+
+/** @param {KeyboardEvent} e */
+function onHoverKey(e) {
+    if (e.key === 'Escape') hideHoverBubble();
+}
+
+/** Attach/detach hover listeners to match the current hoverEnabled setting. */
+function applyHoverState() {
+    if (hoverEnabled && !hoverListenersOn) {
+        document.addEventListener('pointermove', onHoverMove, true);
+        document.addEventListener('keydown', onHoverKey, true);
+        window.addEventListener('scroll', hideHoverBubble, true);
+        hoverListenersOn = true;
+    } else if (!hoverEnabled && hoverListenersOn) {
+        document.removeEventListener('pointermove', onHoverMove, true);
+        document.removeEventListener('keydown', onHoverKey, true);
+        window.removeEventListener('scroll', hideHoverBubble, true);
+        if (hoverDebounceTimer) clearTimeout(hoverDebounceTimer);
+        hideHoverBubble();
+        hoverListenersOn = false;
+    }
 }
 
 /**

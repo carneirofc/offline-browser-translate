@@ -233,6 +233,23 @@
                     <label for="floatingButton">Show floating translate button on text selection</label>
                     <p class="hint">A small button appears next to selected text so you can translate it without right-clicking. Enabling this will ask for permission to run on all websites.</p>
                 </div>
+
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="hoverEnabled">
+                    <label for="hoverEnabled">Hover to translate (hold a modifier key)</label>
+                    <p class="hint">Hold the modifier key below and hover any paragraph to see its translation in a floating bubble that leaves the page untouched. Nothing is sent unless the key is held. Enabling this asks for permission to run on all websites.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="hoverModifier">Hover modifier key</label>
+                    <select id="hoverModifier">
+                        <option value="Alt">Alt / Option</option>
+                        <option value="Control">Ctrl</option>
+                        <option value="Shift">Shift</option>
+                        <option value="Meta">Meta / Cmd / Win</option>
+                    </select>
+                    <p class="hint">Which key must be held while hovering to trigger a translation.</p>
+                </div>
             </section>
 
             <!-- Custom Prompts -->

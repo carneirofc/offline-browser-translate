@@ -39,6 +39,11 @@ const DEFAULT_SETTINGS = {
     cacheMode: 'off',
     debug: false,       // Enable verbose logging
     floatingButton: false, // Show floating translate button on text selection (requires <all_urls> permission)
+    // Hover-to-translate: hold the modifier and hover a paragraph to see its
+    // translation in a floating bubble. Opt-in and gated behind the same
+    // <all_urls> content-script permission as the floating button.
+    hoverEnabled: false,
+    hoverModifier: 'Alt', // 'Alt' | 'Control' | 'Shift' | 'Meta'
     // Image describe & interpret feature. visionModel is the multimodal model
     // used to describe images (falls back to selectedModel when empty).
     // describePrompt overrides DEFAULT_DESCRIBE_PROMPT when set. Both are

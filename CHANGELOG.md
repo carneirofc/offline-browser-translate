@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Hover to translate**: an opt-in mode (Advanced Features) where holding a
+  configurable modifier key (Alt / Ctrl / Shift / Meta) and hovering a paragraph
+  shows its translation in a floating bubble that leaves the page untouched and
+  dismisses on mouse-out or Escape. Nothing is sent unless the modifier is held,
+  and it reuses the same translation pipeline and cache as full-page translation,
+  so repeat hovers are instant. Gated behind the same optional all-websites
+  permission as the floating button; the two share one reference-counted
+  permission helper, so turning one off never revokes the other.
 - **Source-language detection**: when the source is left on *auto*, the extension
   now detects it from the page's declared language and from script analysis of
   the text itself (Japanese kana/kanji, Hangul, Han, Cyrillic, Arabic, Greek,
