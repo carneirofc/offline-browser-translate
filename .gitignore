@@ -5,3 +5,8 @@ graphify-out
 
 # Dev tooling (lint/build only — the shipped extension has no runtime deps)
 node_modules/
+
+# Local agent/skill tooling (machine-specific; not part of the extension)
+.claude/
+.agents/
+skills-lock.json
