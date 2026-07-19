@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Describe a local image from the translator page**: a new section on the
+  full translator page lets you drop, paste, or pick a local image file and get a
+  detailed description in your target language from your local vision model —
+  the same capability as the right-click flow, for images that aren't on a web
+  page. Shows a clear message when no vision model is available.
 - **Hover to translate**: an opt-in mode (Advanced Features) where holding a
   configurable modifier key (Alt / Ctrl / Shift / Meta) and hovering a paragraph
   shows its translation in a floating bubble that leaves the page untouched and

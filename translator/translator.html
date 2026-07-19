@@ -122,6 +122,30 @@
                 </button>
                 <span class="keyboard-hint">Ctrl + Enter</span>
             </div>
+
+            <!-- Describe a local image -->
+            <section class="describe-section">
+                <h2 class="describe-title">Describe an image</h2>
+                <p class="describe-hint">Drop, paste, or choose a local image to get a detailed
+                    description in your target language, using your local vision model.</p>
+                <div class="drop-zone" id="imageDropZone" tabindex="0" role="button"
+                    aria-label="Drop, paste, or choose an image to describe">
+                    <input type="file" id="imageFileInput" accept="image/*" hidden>
+                    <img id="imagePreview" class="image-preview" alt="Selected image preview" hidden>
+                    <p class="drop-zone-text" id="dropZoneText">Drop an image here, paste from the
+                        clipboard, or <span class="drop-zone-link">choose a file</span></p>
+                </div>
+                <div class="describe-bar">
+                    <button class="translate-btn" id="describeBtn" disabled>
+                        <span class="btn-text">Describe image</span>
+                        <span class="btn-loading" hidden>
+                            <span class="spinner"></span> Describing...
+                        </span>
+                    </button>
+                    <button class="ghost-btn" id="clearImageBtn" type="button" hidden>Clear image</button>
+                </div>
+                <div class="describe-output" id="describeOutput" hidden></div>
+            </section>
         </main>
 
         <!-- Footer -->

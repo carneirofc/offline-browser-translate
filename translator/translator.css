@@ -586,3 +586,97 @@
         width: 100%;
     }
 }
+
+/* ---- Describe an image (issue #10) --------------------------------------- */
+.describe-section {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+}
+
+.describe-title {
+    font-size: 1rem;
+    margin: 0 0 4px;
+}
+
+.describe-hint {
+    margin: 0 0 12px;
+    font-size: 0.85rem;
+    color: color-mix(in srgb, CanvasText 65%, transparent);
+}
+
+.drop-zone {
+    border: 2px dashed color-mix(in srgb, CanvasText 30%, transparent);
+    border-radius: var(--radius, 8px);
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.drop-zone:hover,
+.drop-zone:focus-visible,
+.drop-zone.dragover {
+    border-color: AccentColor;
+    background: color-mix(in srgb, AccentColor 8%, transparent);
+    outline: none;
+}
+
+.drop-zone-text {
+    margin: 0;
+    color: color-mix(in srgb, CanvasText 70%, transparent);
+    font-size: 0.9rem;
+}
+
+.drop-zone-link {
+    color: AccentColor;
+    text-decoration: underline;
+}
+
+.image-preview {
+    max-width: 100%;
+    max-height: 240px;
+    border-radius: var(--radius-sm, 6px);
+    display: block;
+    margin: 0 auto 8px;
+}
+
+.describe-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.describe-bar .translate-btn {
+    flex: 0 0 auto;
+}
+
+.ghost-btn {
+    background: transparent;
+    border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+    border-radius: var(--radius-sm, 6px);
+    padding: 8px 14px;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+}
+
+.ghost-btn:hover {
+    background: color-mix(in srgb, CanvasText 8%, transparent);
+}
+
+.describe-output {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: var(--radius, 8px);
+    background: color-mix(in srgb, CanvasText 5%, transparent);
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.55;
+}
+
+.describe-output.error {
+    color: var(--danger, #d33);
+    background: color-mix(in srgb, var(--danger, #d33) 8%, transparent);
+}

@@ -64,9 +64,22 @@ const els = {
     swapBtn: document.getElementById('swapBtn'),
     translateBtn: document.getElementById('translateBtn'),
 
+    // Describe an image (issue #10)
+    imageDropZone: document.getElementById('imageDropZone'),
+    imageFileInput: document.getElementById('imageFileInput'),
+    imagePreview: document.getElementById('imagePreview'),
+    dropZoneText: document.getElementById('dropZoneText'),
+    describeBtn: document.getElementById('describeBtn'),
+    clearImageBtn: document.getElementById('clearImageBtn'),
+    describeOutput: document.getElementById('describeOutput'),
+
     // Toast
     toast: document.getElementById('toast')
 };
+
+// Data URL of the image currently staged for description (null when none).
+let selectedImageDataUrl = null;
+let isDescribing = false;
 
 // ============================================================================
 // Language Selector
@@ -577,6 +590,145 @@ function setupEventListeners() {
 
     // Copy
     els.copyBtn.addEventListener('click', copyTranslation);
+
+    // Describe an image
+    setupImageDescribe();
+}
+
+// ============================================================================
+// Describe an image (issue #10)
+// ============================================================================
+
+/**
+ * Read a File/Blob into a base64 image data URL.
+ * @param {Blob} file
+ * @returns {Promise<string>}
+ */
+function readImageAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Could not read the image file.'));
+        reader.readAsDataURL(file);
+    });
+}
+
+/**
+ * Stage an image (from drop, paste, or file-pick) for description.
+ * @param {Blob} file
+ */
+async function stageImage(file) {
+    if (!file || !file.type || !file.type.startsWith('image/')) {
+        showToast('That file is not an image', 'error');
+        return;
+    }
+    try {
+        selectedImageDataUrl = await readImageAsDataUrl(file);
+        els.imagePreview.src = selectedImageDataUrl;
+        els.imagePreview.hidden = false;
+        els.dropZoneText.hidden = true;
+        els.describeBtn.disabled = false;
+        els.clearImageBtn.hidden = false;
+        els.describeOutput.hidden = true;
+        els.describeOutput.classList.remove('error');
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+/** Clear the staged image and any description. */
+function clearImage() {
+    selectedImageDataUrl = null;
+    els.imagePreview.src = '';
+    els.imagePreview.hidden = true;
+    els.dropZoneText.hidden = false;
+    els.describeBtn.disabled = true;
+    els.clearImageBtn.hidden = true;
+    els.describeOutput.hidden = true;
+    els.describeOutput.textContent = '';
+    els.imageFileInput.value = '';
+}
+
+/** Send the staged image to the background vision pipeline and show the result. */
+async function describeSelectedImage() {
+    if (!selectedImageDataUrl || isDescribing) return;
+    isDescribing = true;
+    els.describeBtn.disabled = true;
+    els.describeBtn.querySelector('.btn-text').hidden = true;
+    els.describeBtn.querySelector('.btn-loading').hidden = false;
+    els.describeOutput.hidden = true;
+    els.describeOutput.classList.remove('error');
+
+    try {
+        const resp = await browserAPI.runtime.sendMessage({
+            type: 'DESCRIBE_IMAGE',
+            imageDataUrl: selectedImageDataUrl
+        });
+        if (!resp || resp.error) {
+            els.describeOutput.textContent = resp?.error
+                || 'No response from the background worker.';
+            els.describeOutput.classList.add('error');
+        } else {
+            els.describeOutput.textContent = resp.text || '(empty description)';
+        }
+    } catch (e) {
+        els.describeOutput.textContent = e.message;
+        els.describeOutput.classList.add('error');
+    } finally {
+        els.describeOutput.hidden = false;
+        isDescribing = false;
+        els.describeBtn.disabled = !selectedImageDataUrl;
+        els.describeBtn.querySelector('.btn-text').hidden = false;
+        els.describeBtn.querySelector('.btn-loading').hidden = true;
+    }
+}
+
+/** Wire the drop zone, paste, file-pick, describe, and clear controls. */
+function setupImageDescribe() {
+    if (!els.imageDropZone) return;
+
+    els.imageDropZone.addEventListener('click', () => els.imageFileInput.click());
+    els.imageDropZone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            els.imageFileInput.click();
+        }
+    });
+
+    els.imageFileInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) stageImage(file);
+    });
+
+    els.imageDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        els.imageDropZone.classList.add('dragover');
+    });
+    els.imageDropZone.addEventListener('dragleave', () => {
+        els.imageDropZone.classList.remove('dragover');
+    });
+    els.imageDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        els.imageDropZone.classList.remove('dragover');
+        const file = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file) stageImage(file);
+    });
+
+    // Paste an image anywhere on the page.
+    document.addEventListener('paste', (e) => {
+        const items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (const item of items) {
+            if (item.type && item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                if (file) { stageImage(file); e.preventDefault(); }
+                break;
+            }
+        }
+    });
+
+    els.describeBtn.addEventListener('click', describeSelectedImage);
+    els.clearImageBtn.addEventListener('click', clearImage);
 }
 
 // ============================================================================

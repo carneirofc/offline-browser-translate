@@ -1076,6 +1076,18 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     }
                     break;
 
+                case 'DESCRIBE_IMAGE':
+                    // Describe a local image supplied as a base64 data URL (from
+                    // the translator page's drop/paste/file-pick). Reuses the same
+                    // vision pipeline + cache as the right-click describe flow.
+                    try {
+                        const text = await describeImage(message.imageDataUrl);
+                        sendResponse({ text });
+                    } catch (e) {
+                        sendResponse({ error: e && e.message });
+                    }
+                    break;
+
                 default:
                     sendResponse({ error: 'Unknown message type' });
             }
