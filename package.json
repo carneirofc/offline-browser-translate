@@ -1,5 +1,5 @@
 {
-  "name": "local-llm-translator",
+  "name": "local-llm-translate-extension",
   "version": "1.7.0",
   "private": true,
   "description": "Privacy-focused browser extension that translates web pages using local LLMs (Ollama, LM Studio, llama.cpp).",
@@ -11,7 +11,9 @@
     "url": "https://github.com/carneirofc/offline-browser-translate.git"
   },
   "scripts": {
-    "test": "node --test",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:ext": "web-ext lint --source-dir=.",
     "build": "web-ext build"
@@ -36,6 +38,12 @@
       "test",
       "test/**",
       "eslint.config.mjs",
+      "vitest.config.js",
+      "tsconfig.json",
+      "types.js",
+      "globals.d.ts",
+      "coverage",
+      "coverage/**",
       "package.json",
       "package-lock.json",
       "README.md",
@@ -52,9 +60,13 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
+    "@types/node": "^26.1.1",
     "eslint": "^9.18.0",
     "eslint-plugin-jsdoc": "^63.1.0",
     "globals": "^15.14.0",
+    "jsdom": "^29.1.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
     "web-ext": "^8.3.0"
   }
 }

@@ -38,6 +38,7 @@ const sharedGlobals = {
   isSuspiciousTranslation: 'readonly',
   extractJsonObject: 'readonly',
   parseTranslationResponse: 'readonly',
+  splitIntoSentences: 'readonly',
   estimateTokens: 'readonly',
   groupTextNodesIntoBatches: 'readonly',
 };
@@ -114,19 +115,28 @@ export default [
     },
   },
   {
-    // translation-core.js is dual-target: a browser/worker global module AND a
-    // CommonJS module required by the Node test suite. Give it Node globals so
-    // its `module.exports` guard lints clean.
-    files: ['translation-core.js'],
+    // These files are dual-target: browser/worker global modules AND CommonJS
+    // modules required by the Vitest suite. Give them Node globals so their
+    // `module.exports` guard lints clean.
+    files: ['translation-core.js', 'cache.js', 'languages.js'],
     languageOptions: {
       globals: { ...globals.node },
     },
   },
   {
-    // Unit tests run under Node's built-in test runner (dev-only; never shipped).
+    // Unit tests run under Vitest (dev-only; never shipped). They are ES modules
+    // and use Vitest's global describe/it/expect.
     files: ['test/**/*.js'],
     languageOptions: {
-      sourceType: 'commonjs',
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.vitest },
+    },
+  },
+  {
+    // Vitest config is an ES module (dev-only; never shipped).
+    files: ['vitest.config.js'],
+    languageOptions: {
+      sourceType: 'module',
       globals: { ...globals.node },
     },
   },

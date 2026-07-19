@@ -1,5 +1,5 @@
 /**
- * Content Script for Local LLM Translator
+ * Content Script for Local LLM Translate
  * Handles DOM text extraction, replacement, and auto-translation of new content
  */
 
@@ -138,48 +138,9 @@ function isTranslatableText(text) {
     return hasLetters;
 }
 
-/**
- * Split text into sentence-level segments while preserving all whitespace and punctuation
- */
-function splitIntoSentences(text) {
-    if (!text) return [];
-    const segments = [];
-    let current = '';
-
-    for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-        current += ch;
-
-        if ('。？！'.includes(ch)) {
-            segments.push(current);
-            current = '';
-            continue;
-        }
-
-        if (!'.!?'.includes(ch)) continue;
-
-        const prev = text[i - 1] || '';
-        const next = text[i + 1] || '';
-        if (ch === '.' && /\d/.test(prev) && /\d/.test(next)) {
-            continue;
-        }
-
-        while (i + 1 < text.length && '.!?'.includes(text[i + 1])) {
-            current += text[++i];
-        }
-
-        if (i + 1 >= text.length || /\s/.test(text[i + 1])) {
-            while (i + 1 < text.length && /\s/.test(text[i + 1])) {
-                current += text[++i];
-            }
-            segments.push(current);
-            current = '';
-        }
-    }
-
-    if (current) segments.push(current);
-    return segments.length > 0 ? segments : [text];
-}
+// splitIntoSentences now lives in translation-core.js (a pure helper shared with
+// the background worker and unit-tested under Vitest). translation-core.js is
+// always injected immediately before content.js, so it is available as a global.
 
 /**
  * Check if a text node has already been processed
@@ -1594,7 +1555,7 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
 });
 
-console.log('Local LLM Translator content script loaded');
+console.log('Local LLM Translate content script loaded');
 
 // ============================================================================
 // Floating translate button (only active when auto-injected via optional permission)

@@ -107,7 +107,7 @@
             const t = db.transaction(STORE, 'readwrite');
             const store = t.objectStore(STORE);
             for (const [k, v] of entries) store.put({ k, v, ts });
-            t.oncomplete = () => resolve();
+            t.oncomplete = () => resolve(undefined);
             t.onerror = () => reject(t.error);
         })).then(() => maybeTrim(entries.length))
            .catch(() => { idbDisabled = true; });
@@ -132,9 +132,9 @@
                 cur.onsuccess = () => {
                     const c = cur.result;
                     if (c && toDelete > 0) { c.delete(); toDelete--; approxCount--; c.continue(); }
-                    else resolve();
+                    else resolve(undefined);
                 };
-                cur.onerror = () => resolve();
+                cur.onerror = () => resolve(undefined);
             }));
         });
     }
@@ -145,7 +145,7 @@
         if (idbDisabled) return Promise.resolve();
         return openDB().then(db => new Promise((resolve, reject) => {
             const r = db.transaction(STORE, 'readwrite').objectStore(STORE).clear();
-            r.onsuccess = () => { approxCount = 0; resolve(); };
+            r.onsuccess = () => { approxCount = 0; resolve(undefined); };
             r.onerror = () => reject(r.error);
         })).catch(() => { /* memory already cleared */ });
     }
@@ -174,7 +174,14 @@
         return openDB().then(() => true).catch(() => false);
     }
 
+    const cacheApi = { cacheKey, cacheGetMany, cacheSetMany, cacheClear, cacheCount, cachePersistentAvailable };
     const g = (typeof self !== 'undefined') ? self
         : (typeof globalThis !== 'undefined') ? globalThis : window;
-    Object.assign(g, { cacheKey, cacheGetMany, cacheSetMany, cacheClear, cacheCount, cachePersistentAvailable });
+    Object.assign(g, cacheApi);
+
+    // Also expose under CommonJS so the pure, side-effect-free `cacheKey` can be
+    // required and unit-tested under Node (the IDB layers stay unused there).
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = cacheApi;
+    }
 })();

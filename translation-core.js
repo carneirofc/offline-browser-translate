@@ -206,8 +206,8 @@
      * JSON-in-prose, `[id]:` line markers, and bare line-per-item output, and
      * remapping sequential model ids back onto the caller's original ids.
      * @param {string} response raw model output
-     * @param {Array<{id:*}>} originalItems items sent, in order
-     * @returns {Array<{id:*, text:string, error?:*}>}
+     * @param {Array<{id:(number|string)}>} originalItems items sent, in order
+     * @returns {TranslationResult[]}
      */
     function parseTranslationResponse(response, originalItems) {
         const expectedCount = originalItems.length;
@@ -307,6 +307,57 @@
         return translations;
     }
 
+    // ---- Sentence segmentation ---------------------------------------------
+
+    /**
+     * Split text into sentence-level segments while preserving all whitespace and
+     * punctuation, so re-joining the segments reproduces the original string. CJK
+     * terminators (。？！) end a segment immediately; Latin terminators (.!?) end
+     * one only when followed by whitespace or end-of-text, and a period between
+     * two digits (e.g. "3.14") is treated as a decimal point, not a sentence end.
+     * @param {string} text
+     * @returns {string[]} segments; `[text]` when nothing splits, `[]` for empty input
+     */
+    function splitIntoSentences(text) {
+        if (!text) return [];
+        const segments = [];
+        let current = '';
+
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            current += ch;
+
+            if ('。？！'.includes(ch)) {
+                segments.push(current);
+                current = '';
+                continue;
+            }
+
+            if (!'.!?'.includes(ch)) continue;
+
+            const prev = text[i - 1] || '';
+            const next = text[i + 1] || '';
+            if (ch === '.' && /\d/.test(prev) && /\d/.test(next)) {
+                continue;
+            }
+
+            while (i + 1 < text.length && '.!?'.includes(text[i + 1])) {
+                current += text[++i];
+            }
+
+            if (i + 1 >= text.length || /\s/.test(text[i + 1])) {
+                while (i + 1 < text.length && /\s/.test(text[i + 1])) {
+                    current += text[++i];
+                }
+                segments.push(current);
+                current = '';
+            }
+        }
+
+        if (current) segments.push(current);
+        return segments.length > 0 ? segments : [text];
+    }
+
     // ---- Block-aware batching ----------------------------------------------
 
     /**
@@ -329,9 +380,9 @@
      * budget to avoid a request-per-paragraph slowdown; a block larger than one
      * batch is spilled across dedicated consecutive batches. Input order (which
      * the caller sorts by priority) is preserved.
-     * @param {Array<{id:*, text:string, blockId?:*}>} descriptors
+     * @param {TextItem[]} descriptors
      * @param {{maxItems?:number, maxTokens?:number}} [options]
-     * @returns {Array<Array<{id:*, text:string, blockId?:*}>>} batches
+     * @returns {TextItem[][]} batches
      */
     function groupTextNodesIntoBatches(descriptors, options = {}) {
         const maxItems = Math.max(1, options.maxItems || 8);
@@ -394,6 +445,7 @@
         isSuspiciousTranslation,
         extractJsonObject,
         parseTranslationResponse,
+        splitIntoSentences,
         estimateTokens,
         groupTextNodesIntoBatches,
     };

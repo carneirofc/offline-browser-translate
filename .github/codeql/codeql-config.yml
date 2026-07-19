@@ -5,3 +5,5 @@ paths-ignore:
   - graphify-out
   - node_modules
   - web-ext-artifacts
+  - test
+  - vitest.config.js

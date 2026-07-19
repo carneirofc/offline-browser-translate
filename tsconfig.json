@@ -1,0 +1,26 @@
+{
+  "//": "Dev-only JSDoc type-checking (issue #21). Emits nothing; `npm run typecheck` runs `tsc --noEmit`. Scoped to the pure, shared vocabulary and its tests — the DOM-coupled background.js/content.js are migrated into typed modules by the follow-up refactors (#22–#28).",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "types.js",
+    "globals.d.ts",
+    "translation-core.js",
+    "cache.js",
+    "languages.js",
+    "defaults.js",
+    "test/**/*.js"
+  ]
+}

@@ -51,11 +51,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nothing new ships in the extension bundle.
 
 ### Changed
+- **Renamed** the extension to **Local LLM Translate Extension** (store/manifest
+  name; in-app surfaces read "Local LLM Translate") ahead of publishing to the
+  Firefox Add-ons store and the Chrome Web Store. No functional change; the MIT
+  license and upstream attribution are unchanged.
 - **Dev tooling**: `npm run lint` now enforces JSDoc on top-level functions via
   `eslint-plugin-jsdoc` (fails on missing/malformed JSDoc), and existing
-  functions across the codebase were documented to satisfy it. A new `npm test`
-  runs the pure-helper unit suite. Both are dev-only — no new files reach the
-  shipped extension bundle (`test/` is excluded from the packaged zip).
+  functions across the codebase were documented to satisfy it.
+- **Test & type-checking harness**: `npm test` now runs a [Vitest](https://vitest.dev)
+  suite (jsdom environment) that locks the current behaviour of the pure helpers
+  with characterization tests — translation-response parsing, translation-text
+  cleanup, embedded-JSON extraction, sentence segmentation, cache-key
+  construction, and request-format resolution — so later refactors can be proven
+  behaviour-preserving. A new `npm run typecheck` runs `tsc --noEmit --checkJs`
+  over the shared modules against JSDoc typedefs for the core vocabulary
+  (`Settings`, the `Message` union, `TextItem`, `TranslationResult`, `Provider`
+  in `types.js`); it emits no compiled output. Both run in CI. All of this is
+  dev-only — the new test/type files (`test/`, `types.js`, `tsconfig.json`,
+  `vitest.config.js`, `globals.d.ts`) are excluded from the packaged zip. To make
+  the helpers testable, `splitIntoSentences` moved into `translation-core.js` and
+  `cache.js` / `languages.js` gained a `module.exports` guard (no runtime change).
 - The Ollama context-window default (`numCtx`) is raised from *model default* to
   **8192** so long single-block requests aren't silently truncated.
 - Pure translation helpers (source detection, response parsing, prompt building,

@@ -289,26 +289,30 @@ async function ensureHostPermissions(urls) {
     }
 }
 
-// Export for use in other scripts (will be included via script tag)
-// These will be available as global variables
+// Export for use in other scripts. In the browser these become globals (the
+// scripts load as classic scripts sharing one scope); under Node they are
+// required as a CommonJS module by the Vitest suite. Uses `Object.assign` (like
+// cache.js / translation-core.js) so the same export list serves every target.
+const languagesApi = {
+    LANGUAGES,
+    getLanguageName,
+    getLanguageCode,
+    MODEL_FORMAT_RULES,
+    PLAIN_TEXT_FORMATS,
+    detectRequestFormat,
+    resolveRequestFormat,
+    hostPermissionPattern,
+    ensureHostPermissions,
+};
+
 if (typeof window !== 'undefined') {
-    window.LANGUAGES = LANGUAGES;
-    window.getLanguageName = getLanguageName;
-    window.getLanguageCode = getLanguageCode;
-    window.MODEL_FORMAT_RULES = MODEL_FORMAT_RULES;
-    window.PLAIN_TEXT_FORMATS = PLAIN_TEXT_FORMATS;
-    window.detectRequestFormat = detectRequestFormat;
-    window.resolveRequestFormat = resolveRequestFormat;
-    window.hostPermissionPattern = hostPermissionPattern;
-    window.ensureHostPermissions = ensureHostPermissions;
+    Object.assign(window, languagesApi);
 } else if (typeof self !== 'undefined') {
-    self.LANGUAGES = LANGUAGES;
-    self.getLanguageName = getLanguageName;
-    self.getLanguageCode = getLanguageCode;
-    self.MODEL_FORMAT_RULES = MODEL_FORMAT_RULES;
-    self.PLAIN_TEXT_FORMATS = PLAIN_TEXT_FORMATS;
-    self.detectRequestFormat = detectRequestFormat;
-    self.resolveRequestFormat = resolveRequestFormat;
-    self.hostPermissionPattern = hostPermissionPattern;
-    self.ensureHostPermissions = ensureHostPermissions;
+    Object.assign(self, languagesApi);
+}
+
+// The browser-only host-permission helpers are harmless under Node — they only
+// touch `browser`/`chrome` when actually called.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = languagesApi;
 }
