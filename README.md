@@ -6,6 +6,8 @@ A privacy-focused browser extension that translates web pages using local LLMs (
 
 [![Get the Add-on](https://extensionworkshop.com/assets/img/documentation/publish/get-the-addon-178x60px.dad84b42.png)](https://addons.mozilla.org/en-GB/firefox/addon/local-llm-translator/)
 
+> This is a fork of [**Eldoprano/offline-browser-translate**](https://github.com/Eldoprano/offline-browser-translate) by [Eldoprano](https://github.com/Eldoprano). See the [CHANGELOG](CHANGELOG.md) for what has changed in this fork.
+
 ## Features
 
 - 🔒 **100% Private** - All translations happen on your local machine via Ollama, LMStudio, or llama.cpp
@@ -122,6 +124,11 @@ Enable **"Enable debug logging"** in Options → Output Settings, then Save.
 
 To view logs, go to `about:debugging#/runtime/this-firefox`, find **Local LLM Translator**, and click **Inspect** — messages with `[Background]` prefix appear in the Console tab.
 
+## Credits
+
+Originally created by [**Eldoprano**](https://github.com/Eldoprano/offline-browser-translate).
+This repository is a fork maintained by [carneirofc](https://github.com/carneirofc/offline-browser-translate).
+
 ## License
 
-MIT
+[MIT](LICENSE) — see the [LICENSE](LICENSE) file for the full text.
