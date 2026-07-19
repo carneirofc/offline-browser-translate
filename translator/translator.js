@@ -289,7 +289,7 @@ function showTranslationError(message) {
     els.targetOutput.textContent = '';
     const span = document.createElement('span');
     span.className = 'placeholder-text';
-    span.style.color = 'var(--red)';
+    span.style.color = 'var(--danger)';
     span.textContent = `Error: ${message}`;
     els.targetOutput.appendChild(span);
     els.copyBtn.hidden = true;
@@ -503,11 +503,11 @@ function showToast(message, type = 'success') {
     msg.textContent = message;
 
     if (type === 'error') {
-        toast.style.borderColor = 'var(--red)';
-        toast.style.color = 'var(--red)';
+        toast.style.borderColor = 'var(--danger)';
+        toast.style.color = 'var(--danger)';
     } else {
-        toast.style.borderColor = 'var(--accent)';
-        toast.style.color = 'var(--accent)';
+        toast.style.borderColor = 'AccentColor';
+        toast.style.color = 'AccentColor';
     }
 
     toast.classList.add('show');

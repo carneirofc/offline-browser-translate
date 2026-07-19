@@ -108,11 +108,11 @@ function showToast(message, type = 'success', duration = 3000) {
     msg.textContent = message;
 
     if (type === 'error') {
-        toast.style.borderColor = 'var(--red)';
-        toast.style.color = 'var(--red)';
+        toast.style.borderColor = 'var(--danger)';
+        toast.style.color = 'var(--danger)';
     } else {
-        toast.style.borderColor = 'var(--accent)';
-        toast.style.color = 'var(--accent)';
+        toast.style.borderColor = 'AccentColor';
+        toast.style.color = 'AccentColor';
     }
 
     toast.classList.add('show');
@@ -399,7 +399,7 @@ const modelPicker = createPicker({
     },
     decorateOption: (li, m) => {
         const badge = document.createElement('span');
-        badge.className = `model-provider-badge model-provider-badge--${m.provider}`;
+        badge.className = 'model-provider-badge';
         badge.textContent = m.provider;
         li.appendChild(badge);
     },
@@ -574,10 +574,10 @@ async function checkProviders() {
 function bannerHTML(type) {
     if (type === 'no-models') {
         return `
-            <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">No translation models found</div>
+            <div style="font-weight: bold; margin-bottom: 4px; color: var(--warn);">No translation models found</div>
             <div>Your LLM provider is connected, but you have not downloaded a translation model yet.</div>
             <div style="margin-top: 6px;">Recommended model:</div>
-            <div style="background: var(--bg1, #2b2b2b); padding: 4px 8px; border-radius: 4px; font-family: monospace; display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+            <div style="background: ButtonFace; padding: 4px 8px; border-radius: 4px; font-family: monospace; display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
                 <code>ollama pull translategemma</code>
             </div>
             <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Or download a model in LM Studio (search for "translate"). Click the refresh button above when done.</div>
@@ -585,14 +585,14 @@ function bannerHTML(type) {
     }
     if (type === 'cors-blocked-ollama') {
         return `
-            <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">Ollama is blocking the extension</div>
+            <div style="font-weight: bold; margin-bottom: 4px; color: var(--warn);">Ollama is blocking the extension</div>
             <div>Ollama is running, but it is not allowing requests from browser extensions (CORS policy).</div>
-            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;"><a href="https://api.onlyoffice.com/docs/plugin-and-macros/ai/configuring-ollama-with-cors/" target="_blank" style="color: var(--accent, #a7c080);">See CORS instructions for Ollama here</a>. Click the refresh button above when done.</div>
+            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;"><a href="https://api.onlyoffice.com/docs/plugin-and-macros/ai/configuring-ollama-with-cors/" target="_blank" style="color: AccentColor;">See CORS instructions for Ollama here</a>. Click the refresh button above when done.</div>
         `;
     }
     if (type === 'cors-blocked-lmstudio') {
         return `
-            <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">LM Studio is blocking the extension</div>
+            <div style="font-weight: bold; margin-bottom: 4px; color: var(--warn);">LM Studio is blocking the extension</div>
             <div>LM Studio server is running, but Cross-Origin Resource Sharing (CORS) is disabled.</div>
             <div style="margin-top: 6px; line-height: 1.4;">
                 To enable CORS:
@@ -608,17 +608,17 @@ function bannerHTML(type) {
     }
     if (type === 'cors-blocked-llamacpp') {
         return `
-            <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">llama.cpp server is blocking the extension</div>
-            <div>llama-server is running, but its <code style="background: var(--bg1, #2b2b2b); padding: 1px 4px; border-radius: 3px;">--cors-origins</code> setting does not allow requests from this extension.</div>
-            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Restart llama-server with <code style="background: var(--bg1, #2b2b2b); padding: 1px 4px; border-radius: 3px;">--cors-origins "*"</code> (the default) or add this extension's origin explicitly. Click the refresh button above when done.</div>
+            <div style="font-weight: bold; margin-bottom: 4px; color: var(--warn);">llama.cpp server is blocking the extension</div>
+            <div>llama-server is running, but its <code style="background: ButtonFace; padding: 1px 4px; border-radius: 3px;">--cors-origins</code> setting does not allow requests from this extension.</div>
+            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Restart llama-server with <code style="background: ButtonFace; padding: 1px 4px; border-radius: 3px;">--cors-origins "*"</code> (the default) or add this extension's origin explicitly. Click the refresh button above when done.</div>
         `;
     }
     return `
-        <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">No LLM provider detected</div>
+        <div style="font-weight: bold; margin-bottom: 4px; color: var(--warn);">No LLM provider detected</div>
         <div>To use this extension, you need a local LLM server running:</div>
         <ol style="margin: 6px 0 2px 18px; padding: 0;">
-            <li>Install <a href="https://ollama.com" target="_blank" style="color: var(--accent, #a7c080);">Ollama</a>, <a href="https://lmstudio.ai" target="_blank" style="color: var(--accent, #a7c080);">LM Studio</a>, or <a href="https://github.com/ggml-org/llama.cpp" target="_blank" style="color: var(--accent, #a7c080);">llama.cpp</a></li>
-            <li>Load a translation model (e.g. <code style="background: var(--bg1, #2b2b2b); padding: 1px 4px; border-radius: 3px;">ollama pull translategemma</code>)</li>
+            <li>Install <a href="https://ollama.com" target="_blank" style="color: AccentColor;">Ollama</a>, <a href="https://lmstudio.ai" target="_blank" style="color: AccentColor;">LM Studio</a>, or <a href="https://github.com/ggml-org/llama.cpp" target="_blank" style="color: AccentColor;">llama.cpp</a></li>
+            <li>Load a translation model (e.g. <code style="background: ButtonFace; padding: 1px 4px; border-radius: 3px;">ollama pull translategemma</code>)</li>
             <li>Click the refresh button above</li>
         </ol>
     `;
@@ -637,14 +637,14 @@ function showSetupBanner(type = 'no-provider') {
     banner = document.createElement('div');
     banner.id = 'setup-banner';
     banner.style.cssText = `
-        background: var(--bg3, #3a3a3a);
-        border: 1px solid var(--yellow, #dbbc7f);
+        background: Field;
+        border: 1px solid var(--warn);
         border-radius: 8px;
         padding: 10px 14px;
         margin: 8px 0;
         font-size: 12px;
         line-height: 1.5;
-        color: var(--fg, #d3c6aa);
+        color: CanvasText;
     `;
     banner.innerHTML = bannerHTML(type);
 
