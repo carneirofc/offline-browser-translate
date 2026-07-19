@@ -34,12 +34,14 @@
     let dbPromise = null;
     let approxCount = null;    // in-memory entry count; avoids a COUNT on every write
 
+    /** Insert/update a key in the in-memory layer, evicting the oldest entry if over capacity. */
     function memSet(k, v) {
         if (mem.has(k)) mem.delete(k); // re-insert so it counts as most-recent
         mem.set(k, v);
         if (mem.size > MEM_MAX) mem.delete(mem.keys().next().value); // drop oldest
     }
 
+    /** Open (or reuse) the IndexedDB connection, creating the object store on first use. */
     function openDB() {
         if (dbPromise) return dbPromise;
         dbPromise = new Promise((resolve, reject) => {
@@ -59,15 +61,17 @@
         return dbPromise;
     }
 
-    // Composite, collision-free key (NUL-separated).
+    /** Build a composite, collision-free cache key (NUL-separated). */
     function cacheKey(model, sourceCode, targetCode, format, text) {
         return [model || '', sourceCode || '', targetCode || '', format || '', text].join(SEP);
     }
 
-    // Look up many keys at once. Returns a Map of key -> translated text for the
-    // keys that were present. Serves from memory first, then IndexedDB for the rest;
-    // IndexedDB hits are folded back into the memory layer. Never rejects — on any
-    // IndexedDB error it returns whatever the memory layer had.
+    /**
+     * Look up many keys at once. Returns a Map of key -> translated text for the
+     * keys that were present. Serves from memory first, then IndexedDB for the rest;
+     * IndexedDB hits are folded back into the memory layer. Never rejects — on any
+     * IndexedDB error it returns whatever the memory layer had.
+     */
     function cacheGetMany(keys) {
         if (!keys || keys.length === 0) return Promise.resolve(new Map());
         const out = new Map();
@@ -89,9 +93,11 @@
         })).catch(() => out);
     }
 
-    // Persist many [key, value] pairs. Always written to the memory layer; also
-    // written to IndexedDB when available. Never rejects — an IndexedDB failure
-    // just disables it and leaves the entries in memory.
+    /**
+     * Persist many [key, value] pairs. Always written to the memory layer; also
+     * written to IndexedDB when available. Never rejects — an IndexedDB failure
+     * just disables it and leaves the entries in memory.
+     */
     function cacheSetMany(entries) {
         if (!entries || entries.length === 0) return Promise.resolve();
         for (const [k, v] of entries) memSet(k, v);
@@ -107,9 +113,11 @@
            .catch(() => { idbDisabled = true; });
     }
 
-    // Evict oldest entries (by write time) when the store grows past MAX_ENTRIES.
-    // Tracks the count in memory so the common path doesn't COUNT the whole store
-    // on every write (only once to seed, then on the rare over-cap trim).
+    /**
+     * Evict oldest entries (by write time) when the store grows past MAX_ENTRIES.
+     * Tracks the count in memory so the common path doesn't COUNT the whole store
+     * on every write (only once to seed, then on the rare over-cap trim).
+     */
     function maybeTrim(added) {
         const seed = (approxCount !== null)
             ? Promise.resolve(approxCount)
@@ -131,6 +139,7 @@
         });
     }
 
+    /** Clear both the in-memory layer and the IndexedDB store. */
     function cacheClear() {
         mem.clear();
         if (idbDisabled) return Promise.resolve();
@@ -141,8 +150,10 @@
         })).catch(() => { /* memory already cleared */ });
     }
 
-    // Entry count for display. IndexedDB count when available (authoritative, since
-    // memory is a subset of it); otherwise the memory layer's size.
+    /**
+     * Entry count for display. IndexedDB count when available (authoritative, since
+     * memory is a subset of it); otherwise the memory layer's size.
+     */
     function cacheCount() {
         if (idbDisabled) return Promise.resolve(mem.size);
         return openDB().then(db => new Promise((resolve, reject) => {
@@ -152,10 +163,12 @@
         })).catch(() => mem.size);
     }
 
-    // Whether real cross-session persistence (IndexedDB) is usable in this browser.
-    // Probes by actually opening the DB, so it detects hardened browsers that block
-    // schema creation (the open fails and flips idbDisabled). Used by the UI to grey
-    // out the "Keep across sessions" option where it can't work.
+    /**
+     * Whether real cross-session persistence (IndexedDB) is usable in this browser.
+     * Probes by actually opening the DB, so it detects hardened browsers that block
+     * schema creation (the open fails and flips idbDisabled). Used by the UI to grey
+     * out the "Keep across sessions" option where it can't work.
+     */
     function cachePersistentAvailable() {
         if (idbDisabled) return Promise.resolve(false);
         return openDB().then(() => true).catch(() => false);

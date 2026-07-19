@@ -36,11 +36,12 @@ const elements = {
 };
 
 let currentSettings = { ...DEFAULT_SETTINGS };
+/** Log to the console only when debug mode is enabled in settings. */
 function debugLog(...args) { if (currentSettings.debug) console.log(...args); }
 let isTranslating = false;
 let detectedPageLanguage = 'en';
 
-// Detect page language from active tab (using programmatic injection)
+/** Detect page language from active tab (using programmatic injection). */
 async function detectPageLanguage() {
     if (elements.detectedLang) {
         elements.detectedLang.textContent = 'Detecting...';
@@ -83,7 +84,7 @@ async function detectPageLanguage() {
     }
 }
 
-// Populate source language override dropdown
+/** Populate source language override dropdown. */
 function populateSourceLangOverride() {
     if (!elements.sourceLangOverride) return;
 
@@ -102,7 +103,7 @@ function populateSourceLangOverride() {
 const TOAST_ICON_SUCCESS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
 const TOAST_ICON_ERROR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
 
-// Show toast notification
+/** Show toast notification. */
 function showToast(message, type = 'success', duration = 3000) {
     const toast = elements.toast;
     const icon = toast.querySelector('.toast-icon');
@@ -127,7 +128,7 @@ function showToast(message, type = 'success', duration = 3000) {
     }, duration);
 }
 
-// Initialize popup
+/** Initialize popup. */
 async function init() {
     populateLanguageDropdown();
     initModelPicker();
@@ -425,7 +426,7 @@ modelPicker.setModels = function (models) {
     this.pinned = this.pinned.filter(id => ids.has(id));
 };
 
-// Initialize the model picker and wire it to settings persistence.
+/** Initialize the model picker and wire it to settings persistence. */
 function initModelPicker() {
     modelPicker.onChange = (id) => {
         currentSettings.selectedModel = id;
@@ -438,7 +439,7 @@ function initModelPicker() {
     modelPicker.init();
 }
 
-// Initialize the language picker and wire it to settings persistence.
+/** Initialize the language picker and wire it to settings persistence. */
 function populateLanguageDropdown() {
     langPicker.onChange = (code) => {
         currentSettings.targetLanguage = code;
@@ -451,7 +452,7 @@ function populateLanguageDropdown() {
     langPicker.init();
 }
 
-// Check if translation is already running in active tab
+/** Check if translation is already running in active tab. */
 async function checkTranslationStatus() {
     try {
         const [tab] = await browserAPI.tabs.query({ active: true, currentWindow: true });
@@ -470,7 +471,7 @@ async function checkTranslationStatus() {
     }
 }
 
-// Load settings from storage
+/** Load settings from storage. */
 async function loadSettings() {
     try {
         const response = await browserAPI.runtime.sendMessage({ type: 'GET_SETTINGS' });
@@ -482,7 +483,7 @@ async function loadSettings() {
     }
 }
 
-// Apply settings to UI
+/** Apply settings to UI. */
 function applySettingsToUI() {
     langPicker.setPinned(currentSettings.pinnedLanguages || []);
     langPicker.setValue(currentSettings.targetLanguage);
@@ -499,6 +500,7 @@ function applySettingsToUI() {
 // Check which providers are available
 let providersAvailable = false;
 
+/** Check which LLM providers are reachable and update the status UI accordingly. */
 async function checkProviders() {
     const statusWrapper = elements.providerStatus;
     const statusDot = statusWrapper.querySelector('.status-dot');
@@ -577,6 +579,7 @@ async function checkProviders() {
     }
 }
 
+/** Build the inner HTML markup for the setup banner, based on its type. */
 function bannerHTML(type) {
     if (type === 'no-models') {
         return `
@@ -630,7 +633,7 @@ function bannerHTML(type) {
     `;
 }
 
-// Show/hide first-run setup guidance banner
+/** Show/hide first-run setup guidance banner. */
 function showSetupBanner(type = 'no-provider') {
     let banner = document.getElementById('setup-banner');
     if (banner) {
@@ -663,12 +666,13 @@ function showSetupBanner(type = 'no-provider') {
     }
 }
 
+/** Hide the setup banner once a provider becomes available. */
 function hideSetupBanner() {
     const banner = document.getElementById('setup-banner');
     if (banner && providersAvailable) banner.hidden = true;
 }
 
-// Load available models
+/** Load available models. */
 async function loadModels(forceRefresh = false) {
     elements.modelTrigger.disabled = true;
     elements.modelTriggerLabel.textContent = 'Loading models...';
@@ -720,7 +724,7 @@ async function loadModels(forceRefresh = false) {
     }
 }
 
-// Save current settings
+/** Save current settings. */
 async function saveCurrentSettings() {
     // Spread the current settings and override ONLY the fields the slim popup
     // owns. Provider, server URLs, token/temperature and cache mode now live on
@@ -745,7 +749,7 @@ async function saveCurrentSettings() {
     });
 }
 
-// Reset the translate button back to its idle state
+/** Reset the translate button back to its idle state. */
 function resetTranslateButton() {
     isTranslating = false;
     elements.translateBtn.disabled = false;
@@ -754,7 +758,7 @@ function resetTranslateButton() {
     elements.cancelBtn.hidden = true;
 }
 
-// Start translation
+/** Start translation. */
 async function startTranslation() {
     if (isTranslating) return;
 
@@ -852,7 +856,7 @@ async function startTranslation() {
     }
 }
 
-// Cancel translation
+/** Cancel translation. */
 async function cancelTranslation() {
     try {
         const [tab] = await browserAPI.tabs.query({ active: true, currentWindow: true });
@@ -866,7 +870,7 @@ async function cancelTranslation() {
     resetTranslateButton();
 }
 
-// Toggle translation on/off (uses cached translations if available)
+/** Toggle translation on/off (uses cached translations if available). */
 async function toggleTranslation() {
     try {
         const [tab] = await browserAPI.tabs.query({ active: true, currentWindow: true });
@@ -883,7 +887,7 @@ async function toggleTranslation() {
     }
 }
 
-// Setup event listeners
+/** Setup event listeners. */
 function setupEventListeners() {
     // Reset the button when the content script signals it's done (e.g. a
     // cache-only run that finishes near-instantly with no progress updates).

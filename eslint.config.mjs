@@ -1,5 +1,6 @@
 import js from '@eslint/js';
 import globals from 'globals';
+import jsdoc from 'eslint-plugin-jsdoc';
 
 // Symbols declared at the top level of languages.js and defaults.js. They are
 // loaded before the other scripts in every HTML page (and concatenated ahead of
@@ -78,6 +79,38 @@ export default [
       'no-cond-assign': ['warn', 'except-parens'],
       'no-case-declarations': 'warn',
       'no-useless-escape': 'warn',
+    },
+  },
+  {
+    // Dev-only JSDoc enforcement (issue #3). Requires a JSDoc block on every
+    // top-level function declaration and fails on malformed JSDoc. The plugin
+    // and this config are dev dependencies only — nothing here ships in the
+    // extension bundle, which loads with no node_modules present.
+    files: ['**/*.js'],
+    plugins: { jsdoc },
+    rules: {
+      'jsdoc/require-jsdoc': ['error', {
+        require: { FunctionDeclaration: true },
+        // Only top-level functions; nested helpers/callbacks aren't required.
+        contexts: [':not(:matches(BlockStatement, ForStatement, WhileStatement)) > FunctionDeclaration'],
+        exemptEmptyFunctions: true,
+      }],
+      // Malformed-JSDoc checks (only fire on blocks that exist).
+      'jsdoc/check-alignment': 'error',
+      'jsdoc/check-param-names': 'error',
+      'jsdoc/check-property-names': 'error',
+      'jsdoc/check-tag-names': ['error', { definedTags: ['returns'] }],
+      'jsdoc/check-types': 'error',
+      'jsdoc/no-undefined-types': 'off', // classic-script globals aren't importable
+      'jsdoc/require-param-name': 'error',
+      'jsdoc/require-property-name': 'error',
+      'jsdoc/valid-types': 'error',
+      // Keep the requirement light: a description is enough; param/return prose
+      // and full type annotations are encouraged but not enforced.
+      'jsdoc/require-param': 'off',
+      'jsdoc/require-returns': 'off',
+      'jsdoc/require-param-description': 'off',
+      'jsdoc/require-returns-description': 'off',
     },
   },
   {

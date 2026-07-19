@@ -122,7 +122,7 @@
     /**
      * Substitute `{{key}}` placeholders in a prompt template.
      * @param {string} template
-     * @param {Object<string,string>} vars
+     * @param {{[key: string]: string}} vars
      * @returns {string}
      */
     function buildPrompt(template, vars) {

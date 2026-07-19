@@ -85,6 +85,7 @@ let isDescribing = false;
 // Language Selector
 // ============================================================================
 
+/** Rebuild the pinned chips and full list for a source/target language selector. */
 function buildLanguageSelector(type) {
     const pinnedContainer = type === 'source' ? els.sourceLangPinned : els.targetLangPinned;
     const listContainer = type === 'source' ? els.sourceLangList : els.targetLangList;
@@ -131,6 +132,7 @@ function buildLanguageSelector(type) {
     }
 }
 
+/** Set the source or target language and update the related UI. */
 function selectLanguage(type, code) {
     const name = LANGUAGES[code] || code;
 
@@ -147,6 +149,7 @@ function selectLanguage(type, code) {
     }
 }
 
+/** Open the source or target language dropdown, closing the other one first. */
 function openDropdown(type) {
     const selector = type === 'source' ? els.sourceLangSelector : els.targetLangSelector;
     const search = type === 'source' ? els.sourceLangSearch : els.targetLangSearch;
@@ -162,11 +165,13 @@ function openDropdown(type) {
     requestAnimationFrame(() => search.focus());
 }
 
+/** Close the source or target language dropdown. */
 function closeDropdown(type) {
     const selector = type === 'source' ? els.sourceLangSelector : els.targetLangSelector;
     selector.classList.remove('open');
 }
 
+/** Toggle the open/closed state of the source or target language dropdown. */
 function toggleDropdown(type) {
     const selector = type === 'source' ? els.sourceLangSelector : els.targetLangSelector;
     if (selector.classList.contains('open')) {
@@ -176,6 +181,7 @@ function toggleDropdown(type) {
     }
 }
 
+/** Show or hide language list items based on a search query. */
 function filterLanguages(type, query) {
     const listContainer = type === 'source' ? els.sourceLangList : els.targetLangList;
     const items = listContainer.querySelectorAll('.lang-item');
@@ -193,6 +199,7 @@ function filterLanguages(type, query) {
 // Swap Languages
 // ============================================================================
 
+/** Swap the source and target languages, moving any translated output back into the source. */
 function swapLanguages() {
     const tmpLang = sourceLanguage;
     sourceLanguage = targetLanguage;
@@ -223,6 +230,7 @@ function swapLanguages() {
 // Translation
 // ============================================================================
 
+/** Translate the source text and display the result or an error. */
 async function translateText() {
     const rawText = els.sourceText.value;
     const text = rawText.trim();
@@ -282,12 +290,14 @@ async function translateText() {
     }
 }
 
+/** Toggle the translate button's loading state. */
 function setTranslatingUI(translating) {
     els.translateBtn.disabled = translating;
     els.translateBtn.querySelector('.btn-text').hidden = translating;
     els.translateBtn.querySelector('.btn-loading').hidden = !translating;
 }
 
+/** Render the translated text in the target output area. */
 function showTranslation(text) {
     els.targetOutput.textContent = '';
     const span = document.createElement('span');
@@ -298,6 +308,7 @@ function showTranslation(text) {
     els.translationInfo.textContent = `${LANGUAGES[sourceLanguage] || sourceLanguage} → ${LANGUAGES[targetLanguage] || targetLanguage}`;
 }
 
+/** Render an error message in the target output area. */
 function showTranslationError(message) {
     els.targetOutput.textContent = '';
     const span = document.createElement('span');
@@ -313,6 +324,7 @@ function showTranslationError(message) {
 // Copy to Clipboard
 // ============================================================================
 
+/** Copy the translated text to the clipboard and show a status toast. */
 function copyTranslation() {
     const outputEl = els.targetOutput.querySelector('.translated-text');
     if (!outputEl) return;
@@ -328,12 +340,14 @@ function copyTranslation() {
 // Character Count
 // ============================================================================
 
+/** Update the source character counter and clear button visibility. */
 function updateCharCount() {
     const len = els.sourceText.value.length;
     els.charCount.textContent = `${len} character${len !== 1 ? 's' : ''}`;
     els.clearBtn.hidden = len === 0;
 }
 
+/** Clear the source text input and refocus it. */
 function clearSource() {
     els.sourceText.value = '';
     updateCharCount();
@@ -344,6 +358,7 @@ function clearSource() {
 // Provider Status
 // ============================================================================
 
+/** Check LLM provider connectivity and update the status indicator. */
 async function checkStatus() {
     const dot = els.statusIndicator.querySelector('.status-dot');
 
@@ -441,6 +456,7 @@ function autoSelectModel(models) {
     return models[0];
 }
 
+/** Fetch available models, select one, and update the model UI/settings. */
 async function loadModels() {
     els.modelName.textContent = 'Loading...';
 
@@ -491,6 +507,7 @@ async function loadModels() {
 // Settings
 // ============================================================================
 
+/** Load extension settings from the background script into currentSettings. */
 async function loadSettings() {
     try {
         const response = await browserAPI.runtime.sendMessage({ type: 'GET_SETTINGS' });
@@ -511,6 +528,7 @@ async function loadSettings() {
 const TOAST_ICON_SUCCESS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
 const TOAST_ICON_ERROR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
 
+/** Show a transient toast message with a success or error style. */
 function showToast(message, type = 'success') {
     const toast = els.toast;
     const icon = toast.querySelector('.toast-icon');
@@ -539,6 +557,7 @@ function showToast(message, type = 'success') {
 // Event Listeners
 // ============================================================================
 
+/** Wire up all page-level UI event listeners. */
 function setupEventListeners() {
     // Language selector buttons
     els.sourceLangBtn.addEventListener('click', (e) => {
@@ -735,6 +754,7 @@ function setupImageDescribe() {
 // Initialization
 // ============================================================================
 
+/** Initialize the translator page: settings, languages, events, and models. */
 async function init() {
     // Load settings to get user preferences
     await loadSettings();

@@ -51,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nothing new ships in the extension bundle.
 
 ### Changed
+- **Dev tooling**: `npm run lint` now enforces JSDoc on top-level functions via
+  `eslint-plugin-jsdoc` (fails on missing/malformed JSDoc), and existing
+  functions across the codebase were documented to satisfy it. A new `npm test`
+  runs the pure-helper unit suite. Both are dev-only — no new files reach the
+  shipped extension bundle (`test/` is excluded from the packaged zip).
 - The Ollama context-window default (`numCtx`) is raised from *model default* to
   **8192** so long single-block requests aren't silently truncated.
 - Pure translation helpers (source detection, response parsing, prompt building,

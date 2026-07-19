@@ -18,7 +18,9 @@ if (typeof importScripts === 'function') {
 // DEFAULT_SETTINGS is defined in defaults.js (single source of truth).
 
 let debugEnabled = false;
+/** Log to console only when debug mode is enabled in settings. */
 function debugLog(...args) { if (debugEnabled) console.log(...args); }
+/** Warn to console only when debug mode is enabled in settings. */
 function debugWarn(...args) { if (debugEnabled) console.warn(...args); }
 
 const PROMPT_TEMPLATES = {
@@ -63,6 +65,7 @@ let cachedSettings = null;
 // Settings Management
 // ============================================================================
 
+/** Load settings from storage, merging over the defaults, and cache the result. */
 async function loadSettings() {
     try {
         const result = await browserAPI.storage.local.get('settings');
@@ -76,6 +79,11 @@ async function loadSettings() {
     }
 }
 
+/**
+ * Merge new settings over the cached settings (and defaults) and persist to storage.
+ * @param {object} settings partial settings to merge in
+ * @returns {Promise<object>} the resulting merged settings
+ */
 async function saveSettings(settings) {
     // Merge defaults < cached < new so fields unknown to the caller are preserved
     cachedSettings = { ...DEFAULT_SETTINGS, ...cachedSettings, ...settings };
@@ -84,6 +92,7 @@ async function saveSettings(settings) {
     return cachedSettings;
 }
 
+/** Get the cached settings, loading them from storage first if not yet cached. */
 async function getSettings() {
     if (!cachedSettings) {
         return loadSettings();
@@ -95,6 +104,14 @@ async function getSettings() {
 // Provider Detection & Model Listing
 // ============================================================================
 
+/**
+ * Probe each provider's URL to detect whether it is running and whether it is
+ * reachable but CORS-blocked (via a fallback no-cors fetch).
+ * @param {string} ollamaUrl
+ * @param {string} lmstudioUrl
+ * @param {string} llamacppUrl
+ * @returns {Promise<object>} availability/blocked flags per provider
+ */
 async function detectProviders(ollamaUrl, lmstudioUrl, llamacppUrl) {
     const results = { ollama: false, ollama_blocked: false, lmstudio: false, lmstudio_blocked: false, llamacpp: false, llamacpp_blocked: false };
 
@@ -181,6 +198,7 @@ async function detectProviders(ollamaUrl, lmstudioUrl, llamacppUrl) {
     return results;
 }
 
+/** Fetch the list of available models from an Ollama server. */
 async function listOllamaModels(url) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -197,6 +215,7 @@ async function listOllamaModels(url) {
     }
 }
 
+/** Fetch the list of available models from an LM Studio server. */
 async function listLMStudioModels(url) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -213,6 +232,7 @@ async function listLMStudioModels(url) {
     }
 }
 
+/** Fetch the list of available models from a llama.cpp server. */
 async function listLlamaCppModels(url) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -229,6 +249,13 @@ async function listLlamaCppModels(url) {
     }
 }
 
+/**
+ * List models across configured providers (or just the selected one), using a
+ * short-lived in-memory cache unless bypassed.
+ * @param {object} settings
+ * @param {boolean} [useCache] whether to serve/refresh the models cache
+ * @returns {Promise<Array<object>>}
+ */
 async function listModels(settings, useCache = true) {
     // Return cached models if available and not expired
     if (useCache && cachedModels && (Date.now() - modelsCacheTime < MODEL_CACHE_TTL)) {
@@ -282,6 +309,11 @@ async function listModels(settings, useCache = true) {
 // with the content script and unit-tested under Node. They remain available here
 // as globals.
 
+/**
+ * If no model is configured yet, auto-select and save a preferred available
+ * model (favoring a translation-specialized one) from the detected providers.
+ * @returns {Promise<object|null>} the selected model, or null if none was chosen
+ */
 async function autoDetectAndSelectModel() {
     try {
         const settings = await getSettings();
@@ -307,6 +339,7 @@ async function autoDetectAndSelectModel() {
     }
 }
 
+/** Resolve which provider hosts the given model id, using the cached model list. */
 async function detectModelProvider(modelId, settings) {
     // Use cached models to avoid extra API calls
     const models = await listModels(settings, true);
@@ -316,6 +349,7 @@ async function detectModelProvider(modelId, settings) {
 
 // PLAIN_TEXT_FORMATS comes from languages.js (shared with the UIs).
 
+/** Call Ollama's /api/generate (non-streaming) and return the raw response text. */
 async function callOllama(settings, modelId, systemPrompt, userPrompt, jsonOutput) {
     const body = {
         model: modelId,
@@ -388,6 +422,7 @@ const TRANSLATION_JSON_SCHEMA = {
     "required": ["translations"],
     "additionalProperties": false
 };
+/** Call LM Studio's /v1/chat/completions (non-streaming) and return the raw response text. */
 async function callLMStudio(settings, modelId, systemPrompt, userPrompt, jsonOutput) {
     const messages = [];
 
@@ -448,6 +483,7 @@ async function callLMStudio(settings, modelId, systemPrompt, userPrompt, jsonOut
     return content;
 }
 
+/** Call llama.cpp's /v1/chat/completions (non-streaming) and return the raw response text. */
 async function callLlamaCpp(settings, modelId, systemPrompt, userPrompt, jsonOutput) {
     const messages = [];
 
@@ -508,7 +544,7 @@ async function callLlamaCpp(settings, modelId, systemPrompt, userPrompt, jsonOut
     return content;
 }
 
-// Low-level call to whichever provider, returning the raw text response.
+/** Low-level call to whichever provider, returning the raw text response. */
 async function callProvider(provider, settings, modelId, systemPrompt, userPrompt, jsonOutput) {
     if (provider === 'ollama') {
         return callOllama(settings, modelId, systemPrompt, userPrompt, jsonOutput);
@@ -710,9 +746,11 @@ async function callProviderStream(provider, settings, modelId, systemPrompt, use
 // Image describe & interpret
 // ============================================================================
 
-// Vision call for OpenAI-compatible providers (LM Studio, llama.cpp). Sends the
-// image as a data: URL using the OpenAI multimodal `image_url` content shape and
-// returns the raw text response. Ollama uses a different shape (see follow-up).
+/**
+ * Vision call for OpenAI-compatible providers (LM Studio, llama.cpp). Sends the
+ * image as a data: URL using the OpenAI multimodal `image_url` content shape and
+ * returns the raw text response. Ollama uses a different shape (see follow-up).
+ */
 async function callOpenAIVision(baseUrl, providerLabel, settings, modelId, prompt, imageDataUrl) {
     const body = {
         model: modelId,
@@ -754,9 +792,11 @@ async function callOpenAIVision(baseUrl, providerLabel, settings, modelId, promp
     return data.choices?.[0]?.message?.content || '';
 }
 
-// Vision call for Ollama. Ollama's multimodal API does not use the OpenAI
-// `image_url` shape — the base64 image (no `data:` prefix) goes in the native
-// `images` array on /api/generate. Mirrors callOllama's error handling.
+/**
+ * Vision call for Ollama. Ollama's multimodal API does not use the OpenAI
+ * `image_url` shape — the base64 image (no `data:` prefix) goes in the native
+ * `images` array on /api/generate. Mirrors callOllama's error handling.
+ */
 async function callOllamaVision(settings, modelId, prompt, imageBase64) {
     const body = {
         model: modelId,
@@ -798,9 +838,11 @@ async function callOllamaVision(settings, modelId, prompt, imageBase64) {
     return data.response || '';
 }
 
-// Encode a Blob as a base64 data: URL. Runs in the service worker (no FileReader),
-// so it reads the bytes via arrayBuffer() and base64-encodes with btoa in chunks
-// (String.fromCharCode.apply blows the arg limit on large images otherwise).
+/**
+ * Encode a Blob as a base64 data: URL. Runs in the service worker (no FileReader),
+ * so it reads the bytes via arrayBuffer() and base64-encodes with btoa in chunks
+ * (String.fromCharCode.apply blows the arg limit on large images otherwise).
+ */
 async function blobToDataUrl(blob) {
     const bytes = new Uint8Array(await blob.arrayBuffer());
     let binary = '';
@@ -811,20 +853,22 @@ async function blobToDataUrl(blob) {
     return `data:${blob.type || 'image/png'};base64,${btoa(binary)}`;
 }
 
-// True only for a canonical base64-encoded image data URL with a non-empty payload.
+/** True only for a canonical base64-encoded image data URL with a non-empty payload. */
 function isBase64ImageDataUrl(url) {
     return typeof url === 'string' && /^data:image\/[^;,]+;base64,.+/.test(url);
 }
 
-// Fetch an image URL and return it as a base64 image data: URL. Already-base64
-// `data:` image URLs are returned as-is (fast path, avoids re-encoding large inline
-// images). Everything else — http(s) URLs and non-base64 data URLs (e.g. URL-encoded
-// SVG) — goes through fetch + blobToDataUrl, which re-encodes to canonical
-// `data:<type>;base64,...` while preserving the same image bytes. For http(s) URLs
-// the service worker needs host access; the on-demand <all_urls> request happens up
-// front in the context-menu click handler (a user gesture), so a failure here means
-// it was denied or the site blocked the image. Always returns a base64 image data
-// URL or throws — callers can rely on the payload being the full image bytes.
+/**
+ * Fetch an image URL and return it as a base64 image data: URL. Already-base64
+ * `data:` image URLs are returned as-is (fast path, avoids re-encoding large inline
+ * images). Everything else — http(s) URLs and non-base64 data URLs (e.g. URL-encoded
+ * SVG) — goes through fetch + blobToDataUrl, which re-encodes to canonical
+ * `data:<type>;base64,...` while preserving the same image bytes. For http(s) URLs
+ * the service worker needs host access; the on-demand <all_urls> request happens up
+ * front in the context-menu click handler (a user gesture), so a failure here means
+ * it was denied or the site blocked the image. Always returns a base64 image data
+ * URL or throws — callers can rely on the payload being the full image bytes.
+ */
 async function fetchImageAsDataUrl(srcUrl) {
     if (!srcUrl) throw new Error('No image URL found.');
     if (isBase64ImageDataUrl(srcUrl)) return srcUrl;
@@ -843,9 +887,11 @@ async function fetchImageAsDataUrl(srcUrl) {
     return dataUrl;
 }
 
-// Orchestrate describe & interpret for one image: resolve the vision model and
-// provider (same selection/auto-detect as translation), fetch+encode the image,
-// build the prompt in the user's target language, and return the model's text.
+/**
+ * Orchestrate describe & interpret for one image: resolve the vision model and
+ * provider (same selection/auto-detect as translation), fetch+encode the image,
+ * build the prompt in the user's target language, and return the model's text.
+ */
 async function describeImage(srcUrl) {
     const settings = await getSettings();
 
@@ -907,9 +953,11 @@ async function describeImage(srcUrl) {
     return result;
 }
 
-// Ensure content.js is present in a tab before messaging it. PING first (cheap,
-// handled by the content script); inject only if that fails, matching the
-// inject-then-retry pattern used by the translation context-menu handlers.
+/**
+ * Ensure content.js is present in a tab before messaging it. PING first (cheap,
+ * handled by the content script); inject only if that fails, matching the
+ * inject-then-retry pattern used by the translation context-menu handlers.
+ */
 async function ensureContentScript(tabId) {
     try {
         await browserAPI.tabs.sendMessage(tabId, { type: 'PING' });
@@ -919,9 +967,11 @@ async function ensureContentScript(tabId) {
     }
 }
 
-// Translate a single text as plain text (no JSON), used as the last-resort
-// fallback when structured output keeps failing. The whole response IS the
-// translation — nothing to parse, nothing to break the page.
+/**
+ * Translate a single text as plain text (no JSON), used as the last-resort
+ * fallback when structured output keeps failing. The whole response IS the
+ * translation — nothing to parse, nothing to break the page.
+ */
 async function translatePlainItem(provider, settings, modelId, text, vars) {
     const systemPrompt = `You are a professional translator. Translate the user's text into ${vars.targetLang}. Output ONLY the translation, with no quotes, labels, JSON, or commentary.`;
     const userPrompt = text;
@@ -929,9 +979,11 @@ async function translatePlainItem(provider, settings, modelId, text, vars) {
     return cleanTranslationText((raw || '').trim());
 }
 
-// Small fast non-cryptographic string hash (cyrb53). Folds the prompt shape
-// (templates + sampling params) into a compact token for the cache key without
-// bloating it with the full template text.
+/**
+ * Small fast non-cryptographic string hash (cyrb53). Folds the prompt shape
+ * (templates + sampling params) into a compact token for the cache key without
+ * bloating it with the full template text.
+ */
 function hashString(str) {
     let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
     for (let i = 0; i < str.length; i++) {
@@ -944,6 +996,15 @@ function hashString(str) {
     return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36);
 }
 
+/**
+ * Translate a batch of text items to the target language: resolves the
+ * provider/model/prompt template, sends the (batched) requests, retries
+ * failed/suspicious results, and returns the translated texts.
+ * @param {Array<object>} textItems items with an id and text to translate
+ * @param {string} targetLanguage target language code
+ * @param {object} settings
+ * @returns {Promise<*>}
+ */
 async function translate(textItems, targetLanguage, settings) {
     const modelId = settings.selectedModel;
     if (!modelId) throw new Error('No model selected');

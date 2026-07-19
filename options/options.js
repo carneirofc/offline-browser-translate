@@ -98,7 +98,7 @@ const elements = {
 
 let currentSettings = { ...DEFAULT_SETTINGS };
 
-// Highlight variables in text
+/** Escape HTML in text and wrap {{variable}} placeholders in a highlight span. */
 function highlightVariables(text) {
     if (!text) return text;
     // Escape HTML first
@@ -111,7 +111,7 @@ function highlightVariables(text) {
     return escaped.replace(/(\{\{[a-zA-Z0-9_]+\}\})/g, '<span class="highlight-var">$1</span>');
 }
 
-// Sync textarea with backdrop for highlighting
+/** Sync a textarea with its highlighting backdrop element. */
 function syncEditor(textareaId, backdropId) {
     const textarea = document.getElementById(textareaId);
     const backdrop = document.getElementById(backdropId);
@@ -148,14 +148,14 @@ function syncEditor(textareaId, backdropId) {
     handleInput();
 }
 
-// Initialize prompt editors
+/** Initialize the system/user/describe prompt editors and their backdrops. */
 function initPromptEditors() {
     syncEditor('systemPrompt', 'systemPromptBackdrop');
     syncEditor('userPrompt', 'userPromptBackdrop');
     syncEditor('describePrompt', 'describePromptBackdrop');
 }
 
-// Initialize
+/** Display the extension name and version in the options page footer. */
 function showVersion() {
     const el = document.getElementById('versionInfo');
     if (!el) return;
@@ -163,6 +163,7 @@ function showVersion() {
     el.textContent = `${manifest.name} v${manifest.version}`;
 }
 
+/** Initialize the options page: load settings, populate UI, and wire up listeners. */
 async function init() {
     showVersion();
     populateLanguageDropdowns();
@@ -182,8 +183,10 @@ async function init() {
     });
 }
 
-// Grey out "Keep across sessions" when the browser blocks IndexedDB (e.g. hardened
-// Firefox forks like Mullvad/Tor), since persistence can't work there.
+/**
+ * Grey out "Keep across sessions" when the browser blocks IndexedDB (e.g. hardened
+ * Firefox forks like Mullvad/Tor), since persistence can't work there.
+ */
 async function refreshCacheBackend() {
     if (!elements.cacheMode) return;
     let persistent = true;
@@ -201,7 +204,7 @@ async function refreshCacheBackend() {
     }
 }
 
-// Show how many translations are currently cached.
+/** Show how many translations are currently cached. */
 async function refreshCacheCount() {
     if (!elements.cacheCount) return;
     try {
@@ -212,7 +215,7 @@ async function refreshCacheCount() {
     }
 }
 
-// Load available models from providers
+/** Load available models from providers and populate the model/vision dropdowns. */
 async function loadModels() {
     if (!elements.modelSelect) return;
 
@@ -261,9 +264,11 @@ async function loadModels() {
     }
 }
 
-// Fill the vision-model dropdown from the same provider model list as the
-// translation model. A leading empty option means "reuse the preferred model"
-// (visionModel = '', the background fallback).
+/**
+ * Fill the vision-model dropdown from the same provider model list as the
+ * translation model. A leading empty option means "reuse the preferred model"
+ * (visionModel = '', the background fallback).
+ */
 function populateVisionModels(models) {
     const select = elements.visionModelSelect;
     if (!select) return;
@@ -287,7 +292,7 @@ function populateVisionModels(models) {
     select.value = currentSettings.visionModel || '';
 }
 
-// Populate language dropdowns from LANGUAGES object
+/** Populate the source and target language dropdowns from the LANGUAGES object. */
 function populateLanguageDropdowns() {
     const sortedLangs = Object.entries(LANGUAGES).sort((a, b) => a[1].localeCompare(b[1]));
 
@@ -310,7 +315,7 @@ function populateLanguageDropdowns() {
     }
 }
 
-// Load settings from storage
+/** Load settings from storage into currentSettings. */
 async function loadSettings() {
     try {
         const response = await browserAPI.runtime.sendMessage({ type: 'GET_SETTINGS' });
@@ -322,7 +327,7 @@ async function loadSettings() {
     }
 }
 
-// Apply settings to UI
+/** Apply currentSettings values to the options page UI elements. */
 function applySettingsToUI() {
     elements.providerSelect.value = currentSettings.provider;
     elements.ollamaUrl.value = currentSettings.ollamaUrl;
@@ -369,15 +374,19 @@ function applySettingsToUI() {
     updateVisibility();
 }
 
-// The effective format = the explicit choice, or (for 'auto') the one detected
-// from the selected model. resolveRequestFormat/detectRequestFormat come from languages.js.
+/**
+ * The effective format = the explicit choice, or (for 'auto') the one detected
+ * from the selected model. resolveRequestFormat/detectRequestFormat come from languages.js.
+ */
 function getEffectiveFormat() {
     const modelId = elements.modelSelect?.value || currentSettings.selectedModel;
     return resolveRequestFormat({ requestFormat: elements.requestFormat.value }, modelId);
 }
 
-// Update format description and prompt editor. Shows the *effective* template so
-// the user can see what 'auto' resolved to for the current model.
+/**
+ * Update format description and prompt editor. Shows the *effective* template so
+ * the user can see what 'auto' resolved to for the current model.
+ */
 function updateFormatDescription(format) {
     const effective = format === 'auto' ? getEffectiveFormat() : format;
 
@@ -402,7 +411,7 @@ function updateFormatDescription(format) {
     }
 }
 
-// Update visibility of sections based on the effective format.
+/** Update visibility of sections based on the effective format. */
 function updateVisibility() {
     const selected = elements.requestFormat.value;
     const effective = getEffectiveFormat();
@@ -422,15 +431,17 @@ function updateVisibility() {
     elements.useStructuredOutput.disabled = PLAIN_TEXT_FORMATS.has(effective);
 }
 
-// The describe-prompt value to persist: '' when it still matches the shared
-// default (so DEFAULT_DESCRIBE_PROMPT stays the source of truth), else the edit.
+/**
+ * The describe-prompt value to persist: '' when it still matches the shared
+ * default (so DEFAULT_DESCRIBE_PROMPT stays the source of truth), else the edit.
+ */
 function describePromptOverride() {
     if (!elements.describePrompt) return currentSettings.describePrompt || '';
     const value = elements.describePrompt.value;
     return value.trim() === DEFAULT_DESCRIBE_PROMPT.trim() ? '' : value;
 }
 
-// Save current settings
+/** Save current settings from the UI to storage. */
 async function saveCurrentSettings() {
     currentSettings = {
         ...currentSettings,
@@ -476,7 +487,7 @@ const TOAST_ICON_SUCCESS = '<svg viewBox="0 0 24 24" fill="none" stroke="current
 const TOAST_ICON_ERROR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
 const TOAST_ICON_WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
 
-// Show toast notification
+/** Show a toast notification with an icon matching the given type. */
 function showToast(message, type = 'success', duration = 3000) {
     const toast = elements.toast;
     const icon = toast.querySelector('.toast-icon');
@@ -500,7 +511,7 @@ function showToast(message, type = 'success', duration = 3000) {
     }, duration);
 }
 
-// Setup event listeners
+/** Setup event listeners for all options page controls. */
 function setupEventListeners() {
     // Temperature slider
     elements.temperature.addEventListener('input', (e) => {

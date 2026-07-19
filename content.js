@@ -16,7 +16,9 @@ if (window.hasLLMTranslatorContentScript) {
 window.hasLLMTranslatorContentScript = true;
 
 let debugEnabled = false;
+/** Log to console.log only when debug mode is enabled. */
 function debugLog(...args) { if (debugEnabled) console.log(...args); }
+/** Log to console.warn only when debug mode is enabled. */
 function debugWarn(...args) { if (debugEnabled) console.warn(...args); }
 
 let floatingButtonEnabled = false;
@@ -196,6 +198,7 @@ const TAG_PRIORITY = {
     SPAN: 5, DIV: 5, A: -10, LABEL: -30, BUTTON: -50
 };
 
+/** Calculate priority score for a text node based on viewport visibility and parent tag. */
 function calculatePriority(node) {
     const parent = node.parentElement;
     if (!parent) return 0;
@@ -369,6 +372,7 @@ function extractNewTextNodes(addedNodes) {
     return textItems;
 }
 
+/** Extract translatable text nodes contained within the current user selection. */
 function extractSelectionTextNodes(selection) {
     const textItems = [];
     const seenNodes = new Set();
@@ -432,8 +436,10 @@ function extractSelectionTextNodes(selection) {
     return textItems;
 }
 
-// Opens a runtime.connect port that keeps the background service worker alive
-// during long translation requests (Firefox MV3 terminates idle service workers).
+/**
+ * Opens a runtime.connect port that keeps the background service worker alive
+ * during long translation requests (Firefox MV3 terminates idle service workers).
+ */
 function startKeepAlive() {
     let port = null;
     let interval = null;
@@ -630,6 +636,7 @@ let describeCopyBtn = null;
 let describeSpinnerTimer = null;
 let describeKeyHandler = null;
 
+/** Close the image describe modal, clearing its timer, key handler, and DOM references. */
 function closeDescribeModal() {
     if (describeSpinnerTimer) { clearInterval(describeSpinnerTimer); describeSpinnerTimer = null; }
     if (describeKeyHandler) { document.removeEventListener('keydown', describeKeyHandler, true); describeKeyHandler = null; }
@@ -638,8 +645,10 @@ function closeDescribeModal() {
     describeCopyBtn = null;
 }
 
-// Build (or rebuild) the empty modal shell and store references to its body and
-// copy button. Returns nothing — callers fill describeBodyEl.
+/**
+ * Build (or rebuild) the empty modal shell and store references to its body and
+ * copy button. Returns nothing — callers fill describeBodyEl.
+ */
 function ensureDescribeModal() {
     closeDescribeModal();
 
@@ -712,6 +721,7 @@ function ensureDescribeModal() {
     describeCopyBtn = copyBtn;
 }
 
+/** Show the describe modal with a loading spinner while the image analysis request is in flight. */
 function showDescribeLoading() {
     ensureDescribeModal();
 
@@ -732,6 +742,7 @@ function showDescribeLoading() {
     }, 80);
 }
 
+/** Display the resulting image description text in the modal and enable the copy button. */
 function showDescribeResult(text) {
     // The user may have closed the modal while the request was in flight.
     if (!describeModalHost || !describeBodyEl) return;
@@ -743,6 +754,7 @@ function showDescribeResult(text) {
     }
 }
 
+/** Display an error message in the describe modal in place of a result. */
 function showDescribeError(errorMessage) {
     if (!describeModalHost || !describeBodyEl) return;
     if (describeSpinnerTimer) { clearInterval(describeSpinnerTimer); describeSpinnerTimer = null; }
@@ -956,6 +968,7 @@ function getDeclaredPageLanguage() {
     return null; // No declared language
 }
 
+/** Get the page's source language, defaulting to "en" when none is declared. */
 function getPageLanguage() {
     return getDeclaredPageLanguage() || 'en'; // Default fallback for translation source
 }
@@ -1342,6 +1355,7 @@ async function translatePendingNodes() {
     }
 }
 
+/** Translate the current user text selection in place, showing status messages as it progresses. */
 async function translateSelection(targetLanguage, sourceLanguage = 'auto') {
     if (translationInProgress) {
         showStatus('Translation already in progress...', true);
@@ -1563,6 +1577,7 @@ console.log('Local LLM Translator content script loaded');
 let floatingTranslateBtn = null;
 let suppressFloatingBtn = false;
 
+/** Get the display name for a language code in the browser's UI language, falling back to the uppercased code. */
 function getLanguageName(code) {
     try {
         return new Intl.DisplayNames([navigator.language || 'en'], { type: 'language' }).of(code);
@@ -1571,12 +1586,14 @@ function getLanguageName(code) {
     }
 }
 
+/** Update the floating translate button's tooltip to reflect the current target language. */
 function updateFloatingBtnTitle() {
     if (floatingTranslateBtn) {
         floatingTranslateBtn.title = `Translate to ${getLanguageName(currentTargetLanguage)}`;
     }
 }
 
+/** Lazily create (or return the existing) floating translate button element and append it to the document. */
 function getFloatingTranslateBtn() {
     if (floatingTranslateBtn) return floatingTranslateBtn;
 
@@ -1610,6 +1627,7 @@ function getFloatingTranslateBtn() {
     return btn;
 }
 
+/** Position and reveal the floating translate button next to the end of the given selection. */
 function showFloatingBtn(selection) {
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
     const range = selection.getRangeAt(selection.rangeCount - 1);
@@ -1624,6 +1642,7 @@ function showFloatingBtn(selection) {
     requestAnimationFrame(() => { btn.style.opacity = '0.65'; btn.style.transform = 'scale(1)'; });
 }
 
+/** Fade out and hide the floating translate button. */
 function hideFloatingBtn() {
     if (!floatingTranslateBtn) return;
     floatingTranslateBtn.style.opacity = '0';
@@ -1631,6 +1650,7 @@ function hideFloatingBtn() {
     setTimeout(() => { if (floatingTranslateBtn) floatingTranslateBtn.style.display = 'none'; }, 80);
 }
 
+/** Show the floating translate button for the current selection if conditions allow it. */
 function tryShowFloatingBtn() {
     if (!floatingButtonEnabled) return;
     const selection = window.getSelection();

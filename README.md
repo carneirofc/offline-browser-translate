@@ -128,10 +128,17 @@ The only tooling is **dev-time linting and packaging** (it never ships to users)
 
 ```bash
 npm ci            # install dev tools (ESLint, web-ext)
-npm run lint      # ESLint (static analysis)
+npm test          # run the unit tests (Node's built-in test runner)
+npm run lint      # ESLint — static analysis + JSDoc enforcement
 npm run lint:ext  # web-ext lint (validates manifest.json)
 npm run build     # package into web-ext-artifacts/*.zip
 ```
+
+`npm run lint` uses ESLint with **`eslint-plugin-jsdoc`**, which fails the build
+on missing or malformed JSDoc for top-level functions, so the codebase stays
+documented. `npm test` runs the pure translation helpers
+(`translation-core.js`) under `node --test`. Both are **dev-only**: the shipped
+extension contains no `node_modules` and no test/lint files.
 
 CI runs these on every PR (`ESLint` + `web-ext lint`), plus **CodeQL** security
 analysis. Pushing a `v*` tag builds the zip, creates a GitHub Release, and — when
