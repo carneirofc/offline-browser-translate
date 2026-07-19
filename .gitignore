@@ -1,3 +1,7 @@
 # Build artifacts (extension packages uploaded to Firefox)
 *.zip
+web-ext-artifacts/
 graphify-out
+
+# Dev tooling (lint/build only — the shipped extension has no runtime deps)
+node_modules/

@@ -1,0 +1,23 @@
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  static-analysis:
+    name: ESLint & web-ext lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dev dependencies
+        run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: Validate extension (web-ext lint)
+        run: npm run lint:ext

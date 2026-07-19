@@ -18,7 +18,7 @@ const DEFAULT_SETTINGS = {
     pinnedModels: [],
     maxTokensPerBatch: 2000,
     maxItemsPerBatch: 8,
-    maxConcurrentRequests: 4, // 1-4 parallel requests (LMStudio 0.4.0+ supports parallelism)
+    maxConcurrentRequests: 4, // 1-4 parallel requests (LM Studio 0.4.0+ supports parallelism)
     useAdvanced: false,
     customSystemPrompt: '',
     customUserPromptTemplate: '',
@@ -616,7 +616,7 @@ async function checkProviders() {
         const connectedProviders = [];
 
         if (response.ollama) connectedProviders.push('Ollama');
-        if (response.lmstudio) connectedProviders.push('LMStudio');
+        if (response.lmstudio) connectedProviders.push('LM Studio');
         if (response.llamacpp) connectedProviders.push('llama.cpp');
 
         if (activeProvider === 'ollama') {
@@ -650,7 +650,7 @@ async function checkProviders() {
             statusWrapper.title = blockedType === 'ollama'
                 ? 'Ollama is running but blocking the extension (CORS)'
                 : blockedType === 'lmstudio'
-                    ? 'LMStudio is running but blocking the extension (CORS)'
+                    ? 'LM Studio is running but blocking the extension (CORS)'
                     : 'llama.cpp server is running but blocking the extension (CORS)';
             providersAvailable = false;
             showSetupBanner(
@@ -681,7 +681,7 @@ function bannerHTML(type) {
             <div style="background: var(--bg1, #2b2b2b); padding: 4px 8px; border-radius: 4px; font-family: monospace; display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
                 <code>ollama pull translategemma</code>
             </div>
-            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Or download a model in LMStudio (search for "translate"). Click the refresh button above when done.</div>
+            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Or download a model in LM Studio (search for "translate"). Click the refresh button above when done.</div>
         `;
     }
     if (type === 'cors-blocked-ollama') {
@@ -718,7 +718,7 @@ function bannerHTML(type) {
         <div style="font-weight: bold; margin-bottom: 4px; color: var(--yellow, #dbbc7f);">No LLM provider detected</div>
         <div>To use this extension, you need a local LLM server running:</div>
         <ol style="margin: 6px 0 2px 18px; padding: 0;">
-            <li>Install <a href="https://ollama.com" target="_blank" style="color: var(--accent, #a7c080);">Ollama</a>, <a href="https://lmstudio.ai" target="_blank" style="color: var(--accent, #a7c080);">LMStudio</a>, or <a href="https://github.com/ggml-org/llama.cpp" target="_blank" style="color: var(--accent, #a7c080);">llama.cpp</a></li>
+            <li>Install <a href="https://ollama.com" target="_blank" style="color: var(--accent, #a7c080);">Ollama</a>, <a href="https://lmstudio.ai" target="_blank" style="color: var(--accent, #a7c080);">LM Studio</a>, or <a href="https://github.com/ggml-org/llama.cpp" target="_blank" style="color: var(--accent, #a7c080);">llama.cpp</a></li>
             <li>Load a translation model (e.g. <code style="background: var(--bg1, #2b2b2b); padding: 1px 4px; border-radius: 3px;">ollama pull translategemma</code>)</li>
             <li>Click the refresh button above</li>
         </ol>
@@ -866,7 +866,7 @@ async function startTranslation() {
     }
 
     if (!providersAvailable) {
-        showToast('No LLM provider running. Start Ollama, LMStudio, or llama.cpp first.', 'error');
+        showToast('No LLM provider running. Start Ollama, LM Studio, or llama.cpp first.', 'error');
         return;
     }
 

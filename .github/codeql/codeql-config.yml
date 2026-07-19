@@ -1,0 +1,7 @@
+name: CodeQL config
+
+# Analyse the extension source only; skip tooling output and vendored code.
+paths-ignore:
+  - graphify-out
+  - node_modules
+  - web-ext-artifacts

@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Package & GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build extension package
+        run: npm run build
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: web-ext-artifacts/*.zip
+
+  amo:
+    name: Submit to AMO
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check for AMO credentials
+        id: guard
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          if [ -n "$AMO_JWT_ISSUER" ] && [ -n "$AMO_JWT_SECRET" ]; then
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AMO_JWT_ISSUER/AMO_JWT_SECRET not set — skipping AMO submission."
+          fi
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.has_secrets == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.guard.outputs.has_secrets == 'true'
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        if: steps.guard.outputs.has_secrets == 'true'
+        run: npm ci
+      - name: Sign & submit to AMO
+        if: steps.guard.outputs.has_secrets == 'true'
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          npx web-ext sign \
+            --channel=listed \
+            --api-key="$AMO_JWT_ISSUER" \
+            --api-secret="$AMO_JWT_SECRET" \
+            --amo-metadata=amo-metadata.json
+      - name: Upload signed artifact
+        if: steps.guard.outputs.has_secrets == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-xpi
+          path: web-ext-artifacts/*.xpi
+          if-no-files-found: ignore

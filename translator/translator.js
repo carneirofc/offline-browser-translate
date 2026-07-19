@@ -265,7 +265,7 @@ async function translateText() {
     if (!text || isTranslating) return;
 
     if (!selectedModel) {
-        showTranslationError('No model available. Start Ollama, LMStudio, or llama.cpp and reload.');
+        showTranslationError('No model available. Start Ollama, LM Studio, or llama.cpp and reload.');
         return;
     }
 
@@ -399,7 +399,7 @@ async function checkStatus() {
         const connectedProviders = [];
 
         if (response.ollama) connectedProviders.push('Ollama');
-        if (response.lmstudio) connectedProviders.push('LMStudio');
+        if (response.lmstudio) connectedProviders.push('LM Studio');
         if (response.llamacpp) connectedProviders.push('llama.cpp');
 
         if (activeProvider === 'ollama') {
@@ -433,12 +433,12 @@ async function checkStatus() {
             els.statusIndicator.title = blockedType === 'ollama'
                 ? 'Ollama is running but blocking the extension (CORS). Enable CORS in Ollama.'
                 : blockedType === 'lmstudio'
-                    ? 'LMStudio is running but blocking the extension (CORS). Enable CORS in LMStudio Developer settings.'
+                    ? 'LM Studio is running but blocking the extension (CORS). Enable CORS in LM Studio Developer settings.'
                     : 'llama.cpp server is running but blocking the extension (CORS). Restart it with --cors-origins "*".';
         } else {
             dot.className = 'status-dot error';
             els.statusText.textContent = 'No provider';
-            els.statusIndicator.title = 'No LLM providers found. Start Ollama, LMStudio, or llama.cpp.';
+            els.statusIndicator.title = 'No LLM providers found. Start Ollama, LM Studio, or llama.cpp.';
         }
     } catch (e) {
         dot.className = 'status-dot error';
@@ -453,7 +453,7 @@ async function checkStatus() {
 
 /**
  * Smart model auto-selection priority:
- * 1. "translategemma-4b-it" (LMStudio name)
+ * 1. "translategemma-4b-it" (LM Studio name)
  * 2. "translategemma" (Ollama name)
  * 3. Any model containing "translategemma"
  * 4. Any model with "translat" in the name
@@ -486,7 +486,7 @@ async function loadModels() {
 
         if (models.length === 0) {
             els.modelName.textContent = 'No models';
-            els.modelBadge.title = 'No models found. Make sure Ollama, LMStudio, or llama.cpp has models loaded.';
+            els.modelBadge.title = 'No models found. Make sure Ollama, LM Studio, or llama.cpp has models loaded.';
             selectedModel = null;
             return;
         }

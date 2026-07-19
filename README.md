@@ -2,7 +2,14 @@
   <img src="assets/logo.png" width="48" valign="middle"> Local LLM Translator
 </h1>
 
-A privacy-focused browser extension that translates web pages using local LLMs (Ollama, LMStudio, or llama.cpp). **Your data never leaves your machine.**
+A privacy-focused browser extension that translates web pages using local LLMs (Ollama, LM Studio, or llama.cpp). **Your data never leaves your machine.**
+
+<p align="center">
+  <a href="https://github.com/carneirofc/offline-browser-translate/actions/workflows/lint.yml"><img src="https://github.com/carneirofc/offline-browser-translate/actions/workflows/lint.yml/badge.svg" alt="Lint"></a>
+  <a href="https://github.com/carneirofc/offline-browser-translate/actions/workflows/codeql.yml"><img src="https://github.com/carneirofc/offline-browser-translate/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="https://github.com/carneirofc/offline-browser-translate/actions/workflows/release.yml"><img src="https://github.com/carneirofc/offline-browser-translate/actions/workflows/release.yml/badge.svg" alt="Release"></a>
+  <a href="https://github.com/carneirofc/offline-browser-translate/releases/latest"><img src="https://img.shields.io/github/v/release/carneirofc/offline-browser-translate" alt="Latest release"></a>
+</p>
 
 [![Get the Add-on](https://extensionworkshop.com/assets/img/documentation/publish/get-the-addon-178x60px.dad84b42.png)](https://addons.mozilla.org/en-GB/firefox/addon/local-llm-translator/)
 
@@ -10,7 +17,7 @@ A privacy-focused browser extension that translates web pages using local LLMs (
 
 ## Features
 
-- 🔒 **100% Private** - All translations happen on your local machine via Ollama, LMStudio, or llama.cpp
+- 🔒 **100% Private** - All translations happen on your local machine via Ollama, LM Studio, or llama.cpp
 - 🎯 **Smart Prioritization** - Visible content and headings are translated first
 - 🌍 **Many Languages** - Supports many many languages :3
 - ⚡ **Translation Cache** - Optional: translate identical text once and reuse it (great for forums). Off by default; stored locally with a session-only or persistent mode
@@ -20,12 +27,14 @@ A privacy-focused browser extension that translates web pages using local LLMs (
 You need one of these running locally:
 
 - **[Ollama](https://ollama.ai/)** (default: `http://localhost:11434`)
-- **[LMStudio](https://lmstudio.ai/)** (default: `http://localhost:1234`)
+- **[LM Studio](https://lmstudio.ai/)** (default: `http://localhost:1234`)
 - **[llama.cpp](https://github.com/ggml-org/llama.cpp)** (`llama-server`, default: `http://localhost:8080`)
 
 With a translation-capable model loaded (e.g. `TranslateGemma`, `tencent.hunyuan-mt`, `qwen3`, etc.)
 
 ## Installation
+
+Download the latest packaged zip from the [Releases page](https://github.com/carneirofc/offline-browser-translate/releases/latest) and unzip it, then load it as an unpacked/temporary add-on below. (Or clone the repo and point the loader at your local copy.)
 
 ### Firefox / Mullvad Browser
 1. Go to `about:debugging#/runtime/this-firefox`
@@ -75,8 +84,8 @@ Click **Advanced Settings** to configure:
 
 | Setting | Description |
 |---------|-------------|
-| Provider | Auto-detect, Ollama only, LMStudio only, or llama.cpp only |
-| URLs | Custom endpoints for Ollama/LMStudio/llama.cpp |
+| Provider | Auto-detect, Ollama only, LM Studio only, or llama.cpp only |
+| URLs | Custom endpoints for Ollama/LM Studio/llama.cpp |
 | Max tokens/items per batch | Control batch sizes |
 | Temperature | Model creativity (lower = more consistent) |
 | Request Format (*work in progress*) | Default JSON, Hunyuan-MT, Simple, or Custom |
@@ -111,12 +120,24 @@ To avoid re-translating the same text over and over (forum boilerplate, menus, u
 
 ## Development
 
-The codebase is intentionally simple with no build step or dependencies:
+The **shipped extension** is intentionally simple — pure vanilla JavaScript, no
+runtime dependencies, no bundler, and no build step. Load the folder directly in
+the browser and it runs.
 
-- Pure vanilla JavaScript
-- No external libraries
-- No bundler required
-- Works directly in the browser
+The only tooling is **dev-time linting and packaging** (it never ships to users):
+
+```bash
+npm ci            # install dev tools (ESLint, web-ext)
+npm run lint      # ESLint (static analysis)
+npm run lint:ext  # web-ext lint (validates manifest.json)
+npm run build     # package into web-ext-artifacts/*.zip
+```
+
+CI runs these on every PR (`ESLint` + `web-ext lint`), plus **CodeQL** security
+analysis. Pushing a `v*` tag builds the zip, creates a GitHub Release, and — when
+the `AMO_JWT_ISSUER` / `AMO_JWT_SECRET` repository secrets are set — auto-submits
+the signed build to [addons.mozilla.org](https://addons.mozilla.org/) using
+`amo-metadata.json` for the listing details.
 
 ### Debug Logging
 

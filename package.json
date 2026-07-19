@@ -1,0 +1,56 @@
+{
+  "name": "local-llm-translator",
+  "version": "1.7.0",
+  "private": true,
+  "description": "Privacy-focused browser extension that translates web pages using local LLMs (Ollama, LM Studio, llama.cpp).",
+  "homepage": "https://github.com/carneirofc/offline-browser-translate",
+  "license": "MIT",
+  "author": "Cláudio Carneiro",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/carneirofc/offline-browser-translate.git"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:ext": "web-ext lint --source-dir=.",
+    "build": "web-ext build"
+  },
+  "webExt": {
+    "sourceDir": ".",
+    "artifactsDir": "web-ext-artifacts",
+    "ignoreFiles": [
+      ".github",
+      ".github/**",
+      ".claude",
+      ".claude/**",
+      ".agents",
+      ".agents/**",
+      ".vscode/**",
+      "graphify-out",
+      "graphify-out/**",
+      "node_modules",
+      "node_modules/**",
+      "skills-lock.json",
+      "amo-metadata.json",
+      "eslint.config.mjs",
+      "package.json",
+      "package-lock.json",
+      "README.md",
+      "CHANGELOG.md",
+      "LICENSE",
+      "assets",
+      "assets/**",
+      "**/*.zip",
+      "**/*.xpi"
+    ],
+    "build": {
+      "overwriteDest": true
+    }
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "eslint": "^9.18.0",
+    "globals": "^15.14.0",
+    "web-ext": "^8.3.0"
+  }
+}

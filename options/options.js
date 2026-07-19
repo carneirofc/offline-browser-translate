@@ -15,7 +15,7 @@ const DEFAULT_SETTINGS = {
     sourceLanguage: 'auto',
     maxTokensPerBatch: 2000,
     maxItemsPerBatch: 8,
-    maxConcurrentRequests: 4, // 1-4 parallel requests for LMStudio 0.4.0+
+    maxConcurrentRequests: 4, // 1-4 parallel requests for LM Studio 0.4.0+
     useAdvanced: false,
     customSystemPrompt: '',
     customUserPromptTemplate: '',
@@ -169,7 +169,15 @@ function initPromptEditors() {
 }
 
 // Initialize
+function showVersion() {
+    const el = document.getElementById('versionInfo');
+    if (!el) return;
+    const manifest = browserAPI.runtime.getManifest();
+    el.textContent = `${manifest.name} v${manifest.version}`;
+}
+
 async function init() {
+    showVersion();
     populateLanguageDropdowns();
     await loadSettings();
     applySettingsToUI();

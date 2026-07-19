@@ -1,8 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Local LLM Translator",
+  "short_name": "Translator",
   "version": "1.7.0",
-  "description": "Privacy-focused translation using local LLMs (Ollama, LMStudio, llama.cpp). Your data never leaves your machine.",
+  "description": "Translate web pages with a local LLM (Ollama, LM Studio, llama.cpp). 100% private — your text never leaves your device.",
+  "author": "Cláudio Carneiro",
+  "developer": {
+    "name": "Cláudio Carneiro",
+    "url": "https://github.com/carneirofc"
+  },
+  "homepage_url": "https://github.com/carneirofc/offline-browser-translate",
   "permissions": [
     "activeTab",
     "storage",

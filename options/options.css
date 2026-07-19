@@ -444,6 +444,18 @@ footer {
     margin-top: 0.5rem;
 }
 
+.version-note {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    opacity: 0.75;
+    margin-top: 0.35rem;
+}
+
+.version-note a {
+    color: inherit;
+    text-decoration: underline;
+}
+
 /* Toast */
 .toast {
     position: fixed;

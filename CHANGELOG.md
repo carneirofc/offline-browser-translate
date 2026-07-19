@@ -12,6 +12,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CI/CD** GitHub Actions: static analysis on pull requests (**ESLint** +
+  `web-ext lint`), **CodeQL** security scanning, and a release workflow that
+  packages the extension into a zip, creates a GitHub Release on version tags
+  (`v*`), and auto-submits the signed build to AMO (when
+  `AMO_JWT_ISSUER`/`AMO_JWT_SECRET` secrets are configured, using
+  `amo-metadata.json` for the listing details).
+- Dev tooling: `package.json` (ESLint + web-ext, with `lint`/`lint:ext`/`build`
+  scripts and a `webExt` packaging config) and `eslint.config.mjs`. The shipped
+  extension still has no runtime dependencies and no build step.
+- Package metadata in the manifest: `short_name`, `author`, `developer`, and
+  `homepage_url`.
+- Version + repository link shown in the Options page footer.
+- README lint/CodeQL/release badges and a Releases download link.
+
+### Changed
+- Unified branding to **Local LLM Translator** across the popup, translator, and
+  options UIs (previously a mix of "Local Translator" / "Local LLM Translator").
+- Normalized the "LM Studio" product name across all UI strings (previously
+  spelled "LMStudio" in the popup and translator).
+- Rewrote the extension description for clarity.
+
 ## [1.7.0]
 
 ### Added
