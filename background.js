@@ -49,16 +49,8 @@ Produce only the {{targetLang}} translation, without any additional explanations
     }
 };
 
-// Default prompt for the image describe & interpret feature. Used when
-// settings.describePrompt is empty. {{targetLanguage}} is substituted with the
-// resolved target language name at call time.
-const DEFAULT_DESCRIBE_PROMPT = `Look at this image and respond with two parts.
-
-Description: describe in detail what the image shows — objects, people, text, colors, layout, and any notable details.
-
-Interpretation: explain the likely meaning, context, mood, and intent behind the image.
-
-Respond in {{targetLanguage}}.`;
+// DEFAULT_DESCRIBE_PROMPT is provided by defaults.js (loaded via importScripts
+// above), so the background worker and the options-page editor share one default.
 
 // Cache for models to avoid repeated API calls during translation
 let cachedModels = null;
@@ -808,13 +800,23 @@ async function blobToDataUrl(blob) {
     return `data:${blob.type || 'image/png'};base64,${btoa(binary)}`;
 }
 
-// Fetch an image URL and return it as a base64 data: URL. `data:` URLs are used
-// directly. For http(s) URLs the service worker needs host access; the on-demand
-// <all_urls> request happens up front in the context-menu click handler (a user
-// gesture), so a failure here means it was denied or the site blocked the image.
+// True only for a canonical base64-encoded image data URL with a non-empty payload.
+function isBase64ImageDataUrl(url) {
+    return typeof url === 'string' && /^data:image\/[^;,]+;base64,.+/.test(url);
+}
+
+// Fetch an image URL and return it as a base64 image data: URL. Already-base64
+// `data:` image URLs are returned as-is (fast path, avoids re-encoding large inline
+// images). Everything else — http(s) URLs and non-base64 data URLs (e.g. URL-encoded
+// SVG) — goes through fetch + blobToDataUrl, which re-encodes to canonical
+// `data:<type>;base64,...` while preserving the same image bytes. For http(s) URLs
+// the service worker needs host access; the on-demand <all_urls> request happens up
+// front in the context-menu click handler (a user gesture), so a failure here means
+// it was denied or the site blocked the image. Always returns a base64 image data
+// URL or throws — callers can rely on the payload being the full image bytes.
 async function fetchImageAsDataUrl(srcUrl) {
     if (!srcUrl) throw new Error('No image URL found.');
-    if (srcUrl.startsWith('data:')) return srcUrl;
+    if (isBase64ImageDataUrl(srcUrl)) return srcUrl;
 
     let response;
     try {
@@ -825,7 +827,9 @@ async function fetchImageAsDataUrl(srcUrl) {
     if (!response.ok) throw new Error(`Image download failed (HTTP ${response.status}).`);
     const blob = await response.blob();
     if (blob.type && !blob.type.startsWith('image/')) throw new Error('That URL did not return an image.');
-    return blobToDataUrl(blob);
+    const dataUrl = await blobToDataUrl(blob);
+    if (!isBase64ImageDataUrl(dataUrl)) throw new Error('Could not read the image data to send to the model.');
+    return dataUrl;
 }
 
 // Orchestrate describe & interpret for one image: resolve the vision model and
@@ -846,6 +850,7 @@ async function describeImage(srcUrl) {
     // Raw base64 (no `data:` prefix): sent as-is to Ollama, and hashed for the
     // cache key so the key tracks the image *bytes*, not its srcUrl.
     const imageBase64 = imageDataUrl.replace(/^data:[^;]*;base64,/, '');
+    if (!imageBase64) throw new Error('No image data to send to the model.');
 
     const targetLanguage = settings.targetLanguage || 'en';
     const targetLangName = getLanguageName(targetLanguage);

@@ -57,6 +57,10 @@ const elements = {
     llamacppUrl: document.getElementById('llamacppUrl'),
     modelSelect: document.getElementById('modelSelect'),
     refreshModels: document.getElementById('refreshModels'),
+    visionModelSelect: document.getElementById('visionModelSelect'),
+    refreshVisionModels: document.getElementById('refreshVisionModels'),
+    describePrompt: document.getElementById('describePrompt'),
+    resetDescribePrompt: document.getElementById('resetDescribePrompt'),
     sourceLanguage: document.getElementById('sourceLanguage'),
     sourceLanguageGroup: document.getElementById('sourceLanguageGroup'),
     targetLanguage: document.getElementById('targetLanguage'),
@@ -145,6 +149,7 @@ function syncEditor(textareaId, backdropId) {
 function initPromptEditors() {
     syncEditor('systemPrompt', 'systemPromptBackdrop');
     syncEditor('userPrompt', 'userPromptBackdrop');
+    syncEditor('describePrompt', 'describePromptBackdrop');
 }
 
 // Initialize
@@ -236,12 +241,47 @@ async function loadModels() {
             updateFormatDescription(elements.requestFormat.value);
             updateVisibility();
         }
+
+        populateVisionModels(models);
     } catch (e) {
         console.error('Failed to load models:', e);
         elements.modelSelect.innerHTML = '<option value="">Error loading models</option>';
+        if (elements.visionModelSelect) {
+            // DOM node (not innerHTML) — the codebase avoids innerHTML for AMO.
+            const errOption = document.createElement('option');
+            errOption.value = '';
+            errOption.textContent = 'Error loading models';
+            elements.visionModelSelect.replaceChildren(errOption);
+        }
     } finally {
         elements.modelSelect.disabled = false;
     }
+}
+
+// Fill the vision-model dropdown from the same provider model list as the
+// translation model. A leading empty option means "reuse the preferred model"
+// (visionModel = '', the background fallback).
+function populateVisionModels(models) {
+    const select = elements.visionModelSelect;
+    if (!select) return;
+
+    select.replaceChildren();
+    const fallbackOption = document.createElement('option');
+    fallbackOption.value = '';
+    fallbackOption.textContent = 'Same as preferred model';
+    select.appendChild(fallbackOption);
+
+    for (const model of models) {
+        const option = document.createElement('option');
+        option.value = model.id;
+        option.textContent = `${model.name} (${model.provider})`;
+        option.dataset.provider = model.provider;
+        select.appendChild(option);
+    }
+
+    // Restore the saved choice; falls back to the empty option when the model is
+    // no longer listed (e.g. provider changed) or was never set.
+    select.value = currentSettings.visionModel || '';
 }
 
 // Populate language dropdowns from LANGUAGES object
@@ -308,6 +348,14 @@ function applySettingsToUI() {
     elements.customSystem.value = currentSettings.customSystemPrompt || '';
     elements.customUser.value = currentSettings.customUserPromptTemplate || '';
 
+    // Image-describe prompt: show the saved override, or the shared default when
+    // unset so the user always sees the actual prompt. (The vision-model dropdown
+    // is populated separately in loadModels once the model list is available.)
+    if (elements.describePrompt) {
+        elements.describePrompt.value = currentSettings.describePrompt || DEFAULT_DESCRIBE_PROMPT;
+        elements.describePrompt.dispatchEvent(new Event('input'));
+    }
+
     // Update format description
     updateFormatDescription(currentSettings.requestFormat);
 
@@ -368,6 +416,14 @@ function updateVisibility() {
     elements.useStructuredOutput.disabled = PLAIN_TEXT_FORMATS.has(effective);
 }
 
+// The describe-prompt value to persist: '' when it still matches the shared
+// default (so DEFAULT_DESCRIBE_PROMPT stays the source of truth), else the edit.
+function describePromptOverride() {
+    if (!elements.describePrompt) return currentSettings.describePrompt || '';
+    const value = elements.describePrompt.value;
+    return value.trim() === DEFAULT_DESCRIBE_PROMPT.trim() ? '' : value;
+}
+
 // Save current settings
 async function saveCurrentSettings() {
     currentSettings = {
@@ -377,6 +433,10 @@ async function saveCurrentSettings() {
         lmstudioUrl: elements.lmstudioUrl.value,
         llamacppUrl: elements.llamacppUrl.value,
         selectedModel: elements.modelSelect?.value || currentSettings.selectedModel,
+        visionModel: elements.visionModelSelect ? elements.visionModelSelect.value : (currentSettings.visionModel || ''),
+        // Store '' when the prompt is left at the default so a future default change
+        // still reaches the user; store the edited text otherwise.
+        describePrompt: describePromptOverride(),
         sourceLanguage: elements.sourceLanguage.value,
         targetLanguage: elements.targetLanguage.value,
         requestFormat: elements.requestFormat.value,
@@ -448,11 +508,35 @@ function setupEventListeners() {
         });
     }
 
-    // Refresh models
+    // Refresh models (repopulates both the translation and vision dropdowns)
     if (elements.refreshModels) {
         elements.refreshModels.addEventListener('click', async () => {
             await loadModels();
             showToast('Models refreshed');
+        });
+    }
+
+    // Vision model selection
+    if (elements.visionModelSelect) {
+        elements.visionModelSelect.addEventListener('change', () => {
+            currentSettings.visionModel = elements.visionModelSelect.value;
+        });
+    }
+
+    // Refresh vision models — shares the same model list as the translation dropdown
+    if (elements.refreshVisionModels) {
+        elements.refreshVisionModels.addEventListener('click', async () => {
+            await loadModels();
+            showToast('Models refreshed');
+        });
+    }
+
+    // Restore the built-in describe prompt
+    if (elements.resetDescribePrompt) {
+        elements.resetDescribePrompt.addEventListener('click', () => {
+            elements.describePrompt.value = DEFAULT_DESCRIBE_PROMPT;
+            elements.describePrompt.dispatchEvent(new Event('input'));
+            showToast('Describe prompt reset to default');
         });
     }
 

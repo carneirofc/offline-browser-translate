@@ -115,6 +115,33 @@
                 </div>
             </section>
 
+            <!-- Image Description Settings -->
+            <section class="settings-section">
+                <h2>🖼️ Image Description</h2>
+                <div class="form-group">
+                    <label for="visionModelSelect">Vision Model</label>
+                    <div class="select-with-btn">
+                        <select id="visionModelSelect">
+                            <option value="">Loading models...</option>
+                        </select>
+                        <button id="refreshVisionModels" class="icon-btn" title="Refresh models">🔄</button>
+                    </div>
+                    <p class="hint">Multimodal model used for right-click "Describe &amp; interpret image". Leave on "Same as preferred model" to reuse the translation model.</p>
+                </div>
+
+                <div class="form-group prompt-editor">
+                    <label for="describePrompt">Describe &amp; Interpret Prompt <span class="hint">(editable)</span></label>
+                    <div class="variables-hint">
+                        Variables: <code>{{targetLanguage}}</code>
+                    </div>
+                    <div class="editor-container">
+                        <div class="editor-backdrop" id="describePromptBackdrop"></div>
+                        <textarea id="describePrompt" rows="6" placeholder="Describe & interpret prompt..."></textarea>
+                    </div>
+                    <button id="resetDescribePrompt" class="secondary-btn" type="button">↩️ Reset to default prompt</button>
+                </div>
+            </section>
+
             <!-- Performance Settings -->
             <section class="settings-section">
                 <h2>⚡ Performance</h2>

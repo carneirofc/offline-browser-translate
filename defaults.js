@@ -38,9 +38,20 @@ const DEFAULT_SETTINGS = {
     debug: false,       // Enable verbose logging
     floatingButton: false, // Show floating translate button on text selection (requires <all_urls> permission)
     // Image describe & interpret feature. visionModel is the multimodal model
-    // used to describe images (falls back to selectedModel when empty). Both are
-    // wired to an options-page UI in a later ticket; describePrompt overrides the
-    // built-in default prompt when set. {{targetLanguage}} is substituted at call time.
+    // used to describe images (falls back to selectedModel when empty).
+    // describePrompt overrides DEFAULT_DESCRIBE_PROMPT when set. Both are
+    // configurable on the options page. {{targetLanguage}} is substituted at call time.
     visionModel: '',
     describePrompt: ''
 };
+
+// Default prompt for the image describe & interpret feature. Used when
+// settings.describePrompt is empty. Shared by the background worker (which makes
+// the vision call) and the options page (which pre-fills the editable prompt),
+// so there is one source of truth. {{targetLanguage}} is substituted at call time.
+// eslint-disable-next-line no-unused-vars -- shared global used by other scripts
+const DEFAULT_DESCRIBE_PROMPT = `Read the text in this image and respond with two parts.
+
+Text: transcribe every piece of text visible in the image exactly as written, preserving the original wording, order, and line breaks. If there is no readable text, write "(no text found)".
+
+Translation: translate that text into {{targetLanguage}}.`;

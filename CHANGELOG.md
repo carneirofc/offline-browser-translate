@@ -14,15 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Describe & interpret images**: a new right-click context-menu item on images
-  sends the picture to a vision-capable local model and shows a description +
-  interpretation (written in your target language) in an on-page modal with a
-  Copy button. Works with all three local providers — **LM Studio** and
-  **llama.cpp** (OpenAI `image_url` shape) and **Ollama** (native `images`
+  sends the picture to a vision-capable local model and shows the result in an
+  on-page modal with a Copy button. The default prompt focuses on the **text in
+  the image** — it transcribes what is written verbatim and then translates it
+  into your target language. Works with all three local providers — **LM Studio**
+  and **llama.cpp** (OpenAI `image_url` shape) and **Ollama** (native `images`
   field); uses a new `visionModel` setting (falls back to the selected model).
-  Cross-origin images request the optional `<all_urls>` permission on demand.
-  Descriptions are cached (when the cache is enabled) keyed by the image bytes,
-  model, and target language, so re-describing the same picture is instant. An
-  options-page picker/prompt editor follows.
+  The full image is always sent to the model as base64 (data URLs that are not
+  already base64, e.g. URL-encoded SVG, are re-encoded first); if no image can be
+  read or encoded, the feature errors out instead of sending an empty or malformed
+  payload. Cross-origin images request the optional `<all_urls>` permission on
+  demand. Descriptions are cached (when the cache is enabled) keyed by the image
+  bytes, model, and target language, so re-describing the same picture is instant.
+  The options page has a dedicated **Image Description** section with a
+  vision-model picker (or "same as preferred model") and an editable prompt with
+  a reset.
 - **CI/CD** GitHub Actions: static analysis on pull requests (**ESLint** +
   `web-ext lint`), **CodeQL** security scanning, and a release workflow that
   packages the extension into a zip, creates a GitHub Release on version tags

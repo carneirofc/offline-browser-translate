@@ -7,6 +7,7 @@ import globals from 'globals';
 const sharedGlobals = {
   // Defined in defaults.js — the single source of truth for default settings.
   DEFAULT_SETTINGS: 'readonly',
+  DEFAULT_DESCRIBE_PROMPT: 'readonly',
   LANGUAGES: 'readonly',
   LOCAL_HOSTNAMES: 'readonly',
   MODEL_FORMAT_RULES: 'readonly',
