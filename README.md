@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="assets/logo.png" width="48" valign="middle"> Local LLM Translator
+  <img src="assets/logo.png" width="48" valign="middle"> Local LLM Translate
 </h1>
 
 A privacy-focused browser extension that translates web pages using local LLMs (Ollama, LM Studio, or llama.cpp). **Your data never leaves your machine.**
@@ -13,7 +13,19 @@ A privacy-focused browser extension that translates web pages using local LLMs (
 
 [![Get the Add-on](https://extensionworkshop.com/assets/img/documentation/publish/get-the-addon-178x60px.dad84b42.png)](https://addons.mozilla.org/en-GB/firefox/addon/local-llm-translator/)
 
-> This is a fork of [**Eldoprano/offline-browser-translate**](https://github.com/Eldoprano/offline-browser-translate) by [Eldoprano](https://github.com/Eldoprano). See the [CHANGELOG](CHANGELOG.md) for what has changed in this fork.
+> ### About this fork
+>
+> This is a **hard fork** of [**Eldoprano/offline-browser-translate**](https://github.com/Eldoprano/offline-browser-translate) — the original
+> privacy-focused local-LLM page translator by [Eldoprano](https://github.com/Eldoprano). Building on that
+> foundation, this repository is **tailored to my own needs** and made publicly
+> available under the same MIT license.
+>
+> It is deliberately **not** a drop-in mirror of upstream: I plan **major
+> refactoring** and intend to follow a **different roadmap**, which is why it
+> lives as an independent, separately-maintained fork rather than a branch or a
+> stream of pull requests back to the original. Full credit for the original
+> extension, its architecture, and its privacy-first design goes to Eldoprano;
+> the [CHANGELOG](CHANGELOG.md) tracks what has diverged here.
 
 ## Features
 
@@ -150,12 +162,20 @@ the signed build to [addons.mozilla.org](https://addons.mozilla.org/) using
 
 Enable **"Enable debug logging"** in Options → Output Settings, then Save.
 
-To view logs, go to `about:debugging#/runtime/this-firefox`, find **Local LLM Translator**, and click **Inspect** — messages with `[Background]` prefix appear in the Console tab.
+To view logs, go to `about:debugging#/runtime/this-firefox`, find **Local LLM Translate Extension**, and click **Inspect** — messages with `[Background]` prefix appear in the Console tab.
 
 ## Credits
 
-Originally created by [**Eldoprano**](https://github.com/Eldoprano/offline-browser-translate).
-This repository is a fork maintained by [carneirofc](https://github.com/carneirofc/offline-browser-translate).
+The original **offline-browser-translate** extension — the core idea, the
+privacy-first on-device architecture, and the bulk of the initial
+implementation — was created by [**Eldoprano**](https://github.com/Eldoprano/offline-browser-translate). All credit for that
+groundwork goes to them.
+
+This repository is a **hard fork** maintained by
+[carneirofc](https://github.com/carneirofc/offline-browser-translate), tailored to my own needs and published
+independently. It carries the upstream MIT license and copyright notice, and it
+is heading in its own direction — expect major refactoring and a roadmap that
+diverges from upstream over time.
 
 ## License
 

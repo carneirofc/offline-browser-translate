@@ -1,5 +1,5 @@
 /**
- * Default settings for Local LLM Translator.
+ * Default settings for Local LLM Translate.
  *
  * This is the single source of truth for default settings. It is loaded before
  * the other scripts in every HTML page (popup, options, translator) and is

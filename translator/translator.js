@@ -1,5 +1,5 @@
 /**
- * Translator Page Script for Local LLM Translator
+ * Translator Page Script for Local LLM Translate
  * Google Translate-like interface using local LLM backend
  */
 

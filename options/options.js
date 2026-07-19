@@ -1,5 +1,5 @@
 /**
- * Options Page Script for Local LLM Translator
+ * Options Page Script for Local LLM Translate
  */
 
 // Use browser API with chrome fallback for Firefox compatibility

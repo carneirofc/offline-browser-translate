@@ -1,5 +1,5 @@
 /**
- * Popup Script for Local LLM Translator
+ * Popup Script for Local LLM Translate
  */
 
 // Use browser API with chrome fallback for Firefox compatibility
