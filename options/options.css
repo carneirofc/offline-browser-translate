@@ -277,9 +277,18 @@ footer {
 }
 
 .privacy-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     color: GrayText;
     font-size: 0.85rem;
     margin-top: 0.5rem;
+}
+
+.privacy-note .lock-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
 }
 
 .version-note {

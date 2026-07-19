@@ -115,7 +115,7 @@ input[type="checkbox"] {
     flex: 1;
 }
 
-/* Compact ✕ cancel button — the danger-btn primitive (native.css) provides the
+/* Compact cancel button — the danger-btn primitive (native.css) provides the
    surface, hover and colours; only the padding is overridden here. */
 .cancel-btn {
     padding: 0.55rem 0.9rem;
@@ -175,8 +175,11 @@ footer p {
     gap: 4px;
 }
 
-footer p::before {
-    content: '🔒';
+footer p .lock-icon {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    color: GrayText;
 }
 
 /* ========================================================================

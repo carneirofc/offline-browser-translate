@@ -494,20 +494,26 @@ async function loadSettings() {
 // Toast
 // ============================================================================
 
+// Toast status icons (feather-style, inherit currentColor).
+const TOAST_ICON_SUCCESS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+const TOAST_ICON_ERROR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+
 function showToast(message, type = 'success') {
     const toast = els.toast;
     const icon = toast.querySelector('.toast-icon');
     const msg = toast.querySelector('.toast-message');
 
-    icon.textContent = type === 'success' ? '✅' : '❌';
+    icon.innerHTML = type === 'success' ? TOAST_ICON_SUCCESS : TOAST_ICON_ERROR;
     msg.textContent = message;
 
     if (type === 'error') {
         toast.style.borderColor = 'var(--danger)';
         toast.style.color = 'var(--danger)';
+        icon.style.color = 'var(--danger)';
     } else {
         toast.style.borderColor = 'AccentColor';
         toast.style.color = 'AccentColor';
+        icon.style.color = 'var(--ok)';
     }
 
     toast.classList.add('show');

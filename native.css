@@ -106,6 +106,25 @@ button {
     filter: brightness(1.08);
 }
 
+/* Inline control icons inherit currentColor; size them per host. */
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
+.cancel-btn svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
 /* Shared focus ring for all controls, tied to the OS accent colour. */
 button:focus-visible,
 input:focus-visible,
@@ -188,7 +207,14 @@ a:focus-visible {
 }
 
 .toast-icon {
-    font-size: 1.1rem;
+    display: inline-flex;
+    align-items: center;
+}
+
+.toast-icon svg {
+    width: 18px;
+    height: 18px;
+    display: block;
 }
 
 /* ---- Utility ------------------------------------------------------------- */

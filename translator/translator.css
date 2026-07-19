@@ -215,13 +215,20 @@
 
 /* Clear button */
 .clear-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: none;
     border: none;
     color: GrayText;
-    font-size: 1.1rem;
     cursor: pointer;
     padding: 0.2rem 0.4rem;
     border-radius: 4px;
+}
+
+.clear-btn svg {
+    width: 16px;
+    height: 16px;
 }
 
 .clear-btn:hover {
@@ -230,6 +237,9 @@
 
 /* Copy button */
 .copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     background: ButtonFace;
     border: 1px solid ButtonBorder;
     color: ButtonText;
@@ -237,6 +247,11 @@
     border-radius: var(--radius-sm);
     font-size: 0.8rem;
     cursor: pointer;
+}
+
+.copy-btn svg {
+    width: 14px;
+    height: 14px;
 }
 
 .copy-btn:hover {
@@ -309,7 +324,9 @@
 
 .lang-arrow {
     margin-left: auto;
-    font-size: 0.8rem;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
     color: GrayText;
     transition: transform 0.2s ease;
 }
@@ -506,8 +523,17 @@
 }
 
 .privacy-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     font-size: 0.85rem;
     color: GrayText;
+}
+
+.privacy-note .lock-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
 }
 
 /* ============================================================

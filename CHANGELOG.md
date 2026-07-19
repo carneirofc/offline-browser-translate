@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **UI icons**: removed all emoji/unicode glyphs from the popup, translator, and
+  options pages. Decorative emoji in page titles, section headings, and button
+  labels are dropped (text only), while functional control glyphs (refresh,
+  cancel, clear, language-dropdown arrows, copy, footer lock) and the toast
+  status icons (success / error / warning) are now inline feather-style SVG that
+  inherit `currentColor`, matching the existing caret/swap/pin icons and rendering
+  consistently across platforms and OS light/dark themes.
+
 ## [1.8.0]
 
 ### Added

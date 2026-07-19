@@ -12,14 +12,14 @@
 <body>
     <div class="container">
         <header>
-            <h1>🌐 Local LLM Translator Settings</h1>
+            <h1>Local LLM Translator Settings</h1>
             <p class="subtitle">Configure your privacy-first translation extension</p>
         </header>
 
         <main>
             <!-- Provider Settings -->
             <section class="settings-section">
-                <h2>🔌 Provider Configuration</h2>
+                <h2>Provider Configuration</h2>
 
                 <div class="form-group">
                     <label for="providerSelect">Provider</label>
@@ -55,7 +55,7 @@
                         <select id="modelSelect">
                             <option value="">Loading models...</option>
                         </select>
-                        <button id="refreshModels" class="icon-btn" title="Refresh models">🔄</button>
+                        <button id="refreshModels" class="icon-btn" title="Refresh models" aria-label="Refresh models"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg></button>
                     </div>
                     <p class="hint">Select the model to use for translations.</p>
                 </div>
@@ -63,7 +63,7 @@
 
             <!-- Translation Settings -->
             <section class="settings-section">
-                <h2>🌍 Translation Settings</h2>
+                <h2>Translation Settings</h2>
 
                 <div class="form-group">
                     <label for="targetLanguage">Target Language</label>
@@ -118,14 +118,14 @@
 
             <!-- Image Description Settings -->
             <section class="settings-section">
-                <h2>🖼️ Image Description</h2>
+                <h2>Image Description</h2>
                 <div class="form-group">
                     <label for="visionModelSelect">Vision Model</label>
                     <div class="select-with-btn">
                         <select id="visionModelSelect">
                             <option value="">Loading models...</option>
                         </select>
-                        <button id="refreshVisionModels" class="icon-btn" title="Refresh models">🔄</button>
+                        <button id="refreshVisionModels" class="icon-btn" title="Refresh models" aria-label="Refresh models"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg></button>
                     </div>
                     <p class="hint">Multimodal model used for right-click "Describe &amp; interpret image". Leave on "Same as preferred model" to reuse the translation model.</p>
                 </div>
@@ -139,13 +139,13 @@
                         <div class="editor-backdrop" id="describePromptBackdrop"></div>
                         <textarea id="describePrompt" rows="6" placeholder="Describe & interpret prompt..."></textarea>
                     </div>
-                    <button id="resetDescribePrompt" class="secondary-btn" type="button">↩️ Reset to default prompt</button>
+                    <button id="resetDescribePrompt" class="secondary-btn" type="button">Reset to default prompt</button>
                 </div>
             </section>
 
             <!-- Performance Settings -->
             <section class="settings-section">
-                <h2>⚡ Performance</h2>
+                <h2>Performance</h2>
 
                 <div class="form-row">
                     <div class="form-group">
@@ -176,7 +176,7 @@
 
             <!-- Output Settings -->
             <section class="settings-section">
-                <h2>📤 Output Settings</h2>
+                <h2>Output Settings</h2>
 
                 <div class="form-group checkbox-group">
                     <input type="checkbox" id="useStructuredOutput" checked>
@@ -206,7 +206,7 @@
 
             <!-- Translation Cache -->
             <section class="settings-section">
-                <h2>💾 Translation Cache</h2>
+                <h2>Translation Cache</h2>
 
                 <div class="form-group">
                     <label for="cacheMode">Cache translations</label>
@@ -215,18 +215,18 @@
                         <option value="session">Until I close the browser</option>
                         <option value="persistent">Keep across sessions</option>
                     </select>
-                    <p class="hint" id="cacheBackendWarning" hidden style="color: var(--warn);">⚠️ This browser doesn't support keeping the cache across sessions.</p>
+                    <p class="hint" id="cacheBackendWarning" hidden style="color: var(--warn);">This browser doesn't support keeping the cache across sessions.</p>
                     <p class="hint">Reuse stored translations for identical text so repeated content (menus, usernames, boilerplate) isn't re-translated. Stored locally, never uploaded. <strong>Until I close the browser</strong> clears it on the next start; <strong>Keep across sessions</strong> keeps it until you clear it.</p>
                 </div>
 
                 <div class="form-group">
-                    <button id="clearCache" class="secondary-btn">🗑️ Clear cache (<span id="cacheCount">…</span> entries)</button>
+                    <button id="clearCache" class="secondary-btn">Clear cache (<span id="cacheCount">…</span> entries)</button>
                 </div>
             </section>
 
             <!-- Advanced Features -->
             <section class="settings-section">
-                <h2>🧪 Advanced Features</h2>
+                <h2>Advanced Features</h2>
 
                 <div class="form-group checkbox-group">
                     <input type="checkbox" id="floatingButton">
@@ -237,7 +237,7 @@
 
             <!-- Custom Prompts -->
             <section class="settings-section" id="customPromptsSection" hidden>
-                <h2>✏️ Custom Prompts</h2>
+                <h2>Custom Prompts</h2>
                 <p class="section-description">Customize the prompts sent to the model. Available variables:</p>
                 <div class="variables-list">
                     <code>{{targetLanguage}}</code>
@@ -262,7 +262,7 @@
 
             <!-- LM Studio TranslateGemma Help -->
             <section class="settings-section info-section" id="translateGemmaHelp" hidden>
-                <h2>ℹ️ TranslateGemma + LM Studio</h2>
+                <h2>TranslateGemma + LM Studio</h2>
                 <p>LM Studio may need a custom chat template for TranslateGemma to work correctly. Go to your model's
                     settings in LM Studio and set the chat template to:</p>
                 <pre id="lmstudioTemplate">{{ bos_token }}
@@ -276,16 +276,16 @@
 {%- if add_generation_prompt -%}
     {{ '&lt;start_of_turn&gt;model\n' }}
 {%- endif -%}</pre>
-                <button id="copyTemplate" class="secondary-btn">📋 Copy Template</button>
+                <button id="copyTemplate" class="secondary-btn">Copy Template</button>
             </section>
         </main>
 
         <footer>
             <div class="button-row">
-                <button id="saveSettings" class="primary-btn">💾 Save Settings</button>
-                <button id="resetSettings" class="danger-btn">🔄 Reset to Defaults</button>
+                <button id="saveSettings" class="primary-btn">Save Settings</button>
+                <button id="resetSettings" class="danger-btn">Reset to Defaults</button>
             </div>
-            <p class="privacy-note">🔒 All translations stay on your device. No data is sent to external servers.</p>
+            <p class="privacy-note"><svg class="lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> All translations stay on your device. No data is sent to external servers.</p>
             <p class="version-note">
                 <span id="versionInfo">Local LLM Translator</span>
                 · <a href="https://github.com/carneirofc/offline-browser-translate" target="_blank" rel="noopener">GitHub</a>
@@ -294,7 +294,7 @@
     </div>
 
     <div id="toast" class="toast">
-        <span class="toast-icon">✅</span>
+        <span class="toast-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
         <span class="toast-message">Settings saved!</span>
     </div>
 
