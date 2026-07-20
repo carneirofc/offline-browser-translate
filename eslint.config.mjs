@@ -9,16 +9,17 @@ const sharedGlobals = {
   // Defined in defaults.js — the single source of truth for default settings.
   DEFAULT_SETTINGS: 'readonly',
   DEFAULT_DESCRIBE_PROMPT: 'readonly',
+  DEFAULT_TRANSLATE_TEMPLATE: 'readonly',
   LANGUAGES: 'readonly',
   LOCAL_HOSTNAMES: 'readonly',
-  MODEL_FORMAT_RULES: 'readonly',
-  PLAIN_TEXT_FORMATS: 'readonly',
-  detectRequestFormat: 'readonly',
-  resolveRequestFormat: 'readonly',
   ensureHostPermissions: 'readonly',
   hostPermissionPattern: 'readonly',
   getLanguageCode: 'readonly',
   getLanguageName: 'readonly',
+  // Exposed by llama-server.js / translate-pipeline.js for the background script.
+  createLlamaServer: 'readonly',
+  createPipeline: 'readonly',
+  TRANSLATION_JSON_SCHEMA: 'readonly',
   // Exposed by cache.js for the background script.
   cacheKey: 'readonly',
   cacheGetMany: 'readonly',
@@ -118,7 +119,7 @@ export default [
     // These files are dual-target: browser/worker global modules AND CommonJS
     // modules required by the Vitest suite. Give them Node globals so their
     // `module.exports` guard lints clean.
-    files: ['translation-core.js', 'cache.js', 'languages.js'],
+    files: ['translation-core.js', 'cache.js', 'languages.js', 'defaults.js', 'llama-server.js', 'translate-pipeline.js'],
     languageOptions: {
       globals: { ...globals.node },
     },

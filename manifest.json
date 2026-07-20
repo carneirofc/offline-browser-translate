@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Local LLM Translate Extension",
   "short_name": "LLM Translate",
-  "version": "1.8.0",
-  "description": "Translate web pages with a local LLM (Ollama, LM Studio, llama.cpp). 100% private — your text never leaves your device.",
+  "version": "2.0.0",
+  "description": "Translate web pages with a local llama-server (llama.cpp, OpenAI-compatible). 100% private — your text never leaves your device.",
   "author": "Cláudio Carneiro",
   "developer": {
     "name": "Cláudio Carneiro",
@@ -41,6 +41,8 @@
       "cache.js",
       "defaults.js",
       "translation-core.js",
+      "llama-server.js",
+      "translate-pipeline.js",
       "background.js"
     ],
     "service_worker": "background.js"

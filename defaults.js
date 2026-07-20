@@ -2,18 +2,17 @@
  * Default settings for Local LLM Translate.
  *
  * This is the single source of truth for default settings. It is loaded before
- * the other scripts in every HTML page (popup, options, translator) and is
- * imported by the background service worker, so all screens share one set of
- * defaults. Do NOT redeclare DEFAULT_SETTINGS anywhere else — a stale copy in
- * one screen silently overrides settings saved by another.
+ * the other scripts in every HTML page (popup, options) and is imported by the
+ * background service worker, so all screens share one set of defaults. Do NOT
+ * redeclare DEFAULT_SETTINGS anywhere else — a stale copy in one screen silently
+ * overrides settings saved by another.
  */
 
 // eslint-disable-next-line no-unused-vars -- shared global used by other scripts
 const DEFAULT_SETTINGS = {
-    provider: 'auto', // 'auto', 'ollama', 'lmstudio', 'llamacpp'
-    ollamaUrl: 'http://localhost:11434',
-    lmstudioUrl: 'http://localhost:1234',
-    llamacppUrl: 'http://localhost:8080',
+    // OpenAI-compatible llama-server endpoint (llama.cpp `/v1`). Legacy
+    // ollamaUrl/lmstudioUrl/llamacppUrl installs migrate to this in loadSettings().
+    serverUrl: 'http://localhost:8080',
     selectedModel: '',
     targetLanguage: 'en',
     sourceLanguage: 'auto', // 'auto' = detect from page, or specific code
@@ -21,11 +20,10 @@ const DEFAULT_SETTINGS = {
     pinnedModels: [],        // Models pinned to the top of the popup picker
     maxTokensPerBatch: 2000,
     maxItemsPerBatch: 8,
-    maxConcurrentRequests: 4, // 1-4 parallel requests (LM Studio 0.4.0+ supports up to 4)
-    useAdvanced: false,
+    maxConcurrentRequests: 4, // 1-4 parallel requests to the server
+    useAdvanced: false,      // Use the custom system/user prompt below instead of the built-in template
     customSystemPrompt: '',
     customUserPromptTemplate: '',
-    requestFormat: 'auto', // 'auto' (detect from model), 'default', 'translategemma', 'hunyuan', 'simple', 'custom'
     temperature: 0.3,
     useStructuredOutput: true,
     // Stream each segment's translation and type it into the page as tokens
@@ -33,11 +31,7 @@ const DEFAULT_SETTINGS = {
     // Turn off to restore the batched-JSON path exactly.
     streamTranslations: true,
     maxOutputRetries: 2,    // Extra attempts when the model returns malformed/missing translations
-    plainTextFallback: true, // After JSON retries fail, translate the failed items one-by-one as plain text
     showGlow: false,
-    numCtx: 8192,       // Ollama context window size (raised from the model
-                        // default so long single-block requests aren't silently
-                        // truncated; 0 would fall back to the model default)
     // Translation cache: 'persistent' (kept across browser sessions), 'session'
     // (kept until the browser is closed, then wiped), or 'off'. Off by default.
     cacheMode: 'off',
@@ -66,3 +60,23 @@ const DEFAULT_DESCRIBE_PROMPT = `Read the text in this image and respond with tw
 Text: transcribe every piece of text visible in the image exactly as written, preserving the original wording, order, and line breaks. If there is no readable text, write "(no text found)".
 
 Translation: translate that text into {{targetLanguage}}.`;
+
+// Built-in translation prompt (single OpenAI JSON path). This is the one source
+// of truth for the default template: the pipeline uses it at translate time and
+// the options page pre-fills its editable prompt fields from it, so the two can
+// never silently diverge. Custom prompts (settings.useAdvanced) override it.
+// {{sourceLang}}, {{targetLanguage}}, and {{texts}} are substituted at call time.
+// eslint-disable-next-line no-unused-vars -- shared global used by other scripts
+const DEFAULT_TRANSLATE_TEMPLATE = {
+    system: `You are a professional translator translating from {{sourceLang}} to {{targetLanguage}}. The numbered texts are consecutive segments of one continuous passage — translate them together so pronouns, dropped subjects, and honorifics stay consistent.
+Respond ONLY with a JSON object in this exact format:
+{"translations": [{"id": 0, "text": "translated text"}, {"id": 1, "text": "another translation"}]}
+Maintain the original meaning, tone, and formatting. Do not add explanations.`,
+    user: `Translate the following {{sourceLang}} texts to {{targetLanguage}}:\n{{texts}}`
+};
+
+// Node/CommonJS callers (translate-pipeline.js under Vitest) load the shared
+// defaults via require(); the browser reads them as globals declared above.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { DEFAULT_SETTINGS, DEFAULT_DESCRIBE_PROMPT, DEFAULT_TRANSLATE_TEMPLATE };
+}

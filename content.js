@@ -69,7 +69,7 @@ let translationCancelled = false;  // Flag to cancel ongoing translation
 let nextNodeId = 0;
 let nextSegmentId = 0;
 let currentTargetLanguage = 'en';
-let maxConcurrentRequests = 4; // Default parallel requests (LMStudio 0.4.0+ supports up to 4)
+let maxConcurrentRequests = 4; // Default parallel requests to the server
 let maxItemsPerBatch = 8;      // Max text segments per translation request (block-aware batching)
 let maxTokensPerBatch = 2000;  // Token budget per translation request
 let sourceLanguageSetting = 'auto'; // User's source-language setting ('auto' = detect)
@@ -986,7 +986,7 @@ async function translateBatch(textItems, targetLanguage, sourceLanguage = 'auto'
                 type: 'TRANSLATE',
                 texts: textItems,
                 targetLanguage,
-                sourceLanguage: pageLanguage // Pass detected page language for TranslateGemma
+                sourceLanguage: pageLanguage // Pass detected page language to the model
             });
 
             debugLog(`[Translator] translateBatch response:`, response);

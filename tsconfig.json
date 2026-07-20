@@ -21,6 +21,8 @@
     "cache.js",
     "languages.js",
     "defaults.js",
+    "llama-server.js",
+    "translate-pipeline.js",
     "test/**/*.js"
   ]
 }

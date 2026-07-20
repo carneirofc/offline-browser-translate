@@ -1,5 +1,5 @@
 {
-  "summary": "Translate any web page with a local LLM (Ollama, LM Studio, or llama.cpp). 100% private — your text never leaves your device.",
+  "summary": "Translate any web page with a local LLM served by llama-server (llama.cpp). 100% private — your text never leaves your device.",
   "categories": ["privacy-security"],
   "version": {
     "release_notes": "See the changelog: https://github.com/carneirofc/offline-browser-translate/blob/main/CHANGELOG.md"

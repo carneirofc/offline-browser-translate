@@ -10,23 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > by [Eldoprano](https://github.com/Eldoprano). Entries below track changes made
 > in this fork.
 
-## [Unreleased]
+## [2.0.0] - 2026-07-20
 
 ### Added
 - **Streaming translations (typewriter effect)**: on by default, each segment's
   translation is streamed from the local LLM and typed into the page as tokens
   arrive, so the page fills in progressively (highest-priority visible segments
   first, several at once) instead of jumping a batch at a time. Works against
-  Ollama's streaming endpoint (newline-delimited JSON) and the OpenAI-compatible
-  streaming endpoints of LM Studio and llama.cpp (Server-Sent Events), reusing
-  the existing dedup, cache, and provider-error handling. Cached segments appear
-  instantly; freshly streamed ones are cached. A **Stream translations** toggle
-  in Options → Output Settings restores the previous whole-batch behaviour.
-- **Describe a local image from the translator page**: a new section on the
-  full translator page lets you drop, paste, or pick a local image file and get a
-  detailed description in your target language from your local vision model —
-  the same capability as the right-click flow, for images that aren't on a web
-  page. Shows a clear message when no vision model is available.
+  the local llama-server's OpenAI-compatible streaming endpoint (Server-Sent
+  Events), reusing the existing dedup, cache, and error handling. Cached
+  segments appear instantly; freshly streamed ones are cached. A **Stream
+  translations** toggle in Options → Output Settings restores the previous
+  whole-batch behaviour.
+- **Internal**: `background.js` was split into node-loadable `llama-server.js`
+  (the OpenAI-compatible client) and `translate-pipeline.js` (batching, cache,
+  response parsing, image description) modules, each exercised by mocked-fetch
+  integration tests.
 - **Hover to translate**: an opt-in mode (Advanced Features) where holding a
   configurable modifier key (Alt / Ctrl / Shift / Meta) and hovering a paragraph
   shows its translation in a floating bubble that leaves the page untouched and
@@ -51,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nothing new ships in the extension bundle.
 
 ### Changed
+- **BREAKING**: the extension now targets **llama-server only** — the
+  OpenAI-compatible `/v1` path is the single supported backend. The
+  `llamacppUrl` setting was renamed to `serverUrl` (default
+  `http://localhost:8080`); legacy installs are migrated automatically.
 - **Renamed** the extension to **Local LLM Translate Extension** (store/manifest
   name; in-app surfaces read "Local LLM Translate") ahead of publishing to the
   Firefox Add-ons store and the Chrome Web Store. No functional change; the MIT
@@ -71,8 +74,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `vitest.config.js`, `globals.d.ts`) are excluded from the packaged zip. To make
   the helpers testable, `splitIntoSentences` moved into `translation-core.js` and
   `cache.js` / `languages.js` gained a `module.exports` guard (no runtime change).
-- The Ollama context-window default (`numCtx`) is raised from *model default* to
-  **8192** so long single-block requests aren't silently truncated.
 - Pure translation helpers (source detection, response parsing, prompt building,
   block batching) were extracted into a shared `translation-core.js` module used
   by both the background worker and the content script and exercised by the tests.
@@ -85,6 +86,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   status icons (success / error / warning) are now inline feather-style SVG that
   inherit `currentColor`, matching the existing caret/swap/pin icons and rendering
   consistently across platforms and OS light/dark themes.
+
+### Removed
+- **Ollama** and **LM Studio** provider support (code, settings, UI).
+- The standalone translator page and its local-image describe path, along with
+  the popup's **Open Translator** button.
+- Model-family request-format rules (TranslateGemma/Hunyuan plain-text
+  handling, the Request Format selector) and the plain-text fallback.
+- The `provider`, `ollamaUrl`, `lmstudioUrl`, `numCtx`, `requestFormat`, and
+  `plainTextFallback` settings.
 
 ## [1.8.0]
 
@@ -192,7 +202,8 @@ support, context-menu translation, parallel LLM requests, and the privacy-focuse
 architecture — is credited to the upstream project by
 [Eldoprano](https://github.com/Eldoprano/offline-browser-translate).
 
-[Unreleased]: https://github.com/carneirofc/offline-browser-translate/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/carneirofc/offline-browser-translate/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/carneirofc/offline-browser-translate/compare/v1.8.0...v2.0.0
 [1.8.0]: https://github.com/carneirofc/offline-browser-translate/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/carneirofc/offline-browser-translate/releases/tag/v1.7.0
 [1.6.3]: https://github.com/carneirofc/offline-browser-translate/releases/tag/v1.6.3

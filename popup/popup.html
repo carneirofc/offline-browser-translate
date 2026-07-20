@@ -55,7 +55,7 @@
         </div>
       </div>
 
-      <!-- Source language (only for TranslateGemma) -->
+      <!-- Source language override (used when auto-detection needs correcting) -->
       <div class="form-group source-lang-group" id="sourceLangGroup" hidden>
         <label>Source language: <span id="detectedLang" class="detected-lang">detecting...</span></label>
         <select id="sourceLangOverride" class="small-select">
@@ -100,7 +100,6 @@
     <footer>
       <div class="footer-links">
         <button id="openOptions" class="secondary-btn" title="Open full settings page">More Settings</button>
-        <button id="openTranslator" class="secondary-btn">Open Translator</button>
       </div>
       <p>
         <svg class="lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>

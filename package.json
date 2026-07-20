@@ -1,8 +1,8 @@
 {
   "name": "local-llm-translate-extension",
-  "version": "1.7.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Privacy-focused browser extension that translates web pages using local LLMs (Ollama, LM Studio, llama.cpp).",
+  "description": "Privacy-focused browser extension that translates web pages using a local llama-server (llama.cpp, OpenAI-compatible).",
   "homepage": "https://github.com/carneirofc/offline-browser-translate",
   "license": "MIT",
   "author": "Cláudio Carneiro",
@@ -24,6 +24,9 @@
     "ignoreFiles": [
       ".github",
       ".github/**",
+      "AGENTS.md",
+      "docs",
+      "docs/**",
       ".claude",
       ".claude/**",
       ".agents",

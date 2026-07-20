@@ -15,29 +15,40 @@
 // ---- Providers --------------------------------------------------------------
 
 /**
- * An LLM backend the extension can talk to. `'auto'` means "pick the first
- * reachable one".
- * @typedef {'auto'|'ollama'|'lmstudio'|'llamacpp'} Provider
- */
-
-/**
- * A model advertised by a provider, as surfaced to the UI pickers.
+ * A model advertised by the server, as surfaced to the UI pickers.
  * @typedef {object} ModelInfo
  * @property {string} id - model identifier used in API requests
  * @property {string} name - display name (often identical to `id`)
- * @property {Provider} provider - which backend advertised it
  */
 
 /**
- * Reachability probe result for the three backends. `*_blocked` means the server
+ * Reachability probe result for the llama-server. `blocked` means the server
  * answered an opaque (CORS-blocked) response, so it is running but unreadable.
- * @typedef {object} ProviderAvailability
- * @property {boolean} ollama
- * @property {boolean} ollama_blocked
- * @property {boolean} lmstudio
- * @property {boolean} lmstudio_blocked
- * @property {boolean} llamacpp
- * @property {boolean} llamacpp_blocked
+ * @typedef {object} ServerStatus
+ * @property {boolean} available
+ * @property {boolean} blocked
+ */
+
+/**
+ * A translation provider: the interface `translate-pipeline.js` depends on.
+ * `llama-server.js` implements it; a future provider is a new implementation.
+ * @typedef {object} TranslationProvider
+ * @property {string} [id]
+ * @property {string} [label]
+ * @property {() => Promise<ServerStatus>} [probeServer]
+ * @property {() => Promise<ModelInfo[]>} [listModels]
+ * @property {(modelId: string, system: string, user: string, opts?: {jsonSchema?: object|null, schemaName?: string, temperature?: number}) => Promise<string>} [chatCompletion]
+ * @property {(modelId: string, system: string, user: string, onDelta: (t: string) => void, opts?: {temperature?: number}) => Promise<string>} [chatCompletionStream]
+ * @property {(modelId: string, prompt: string, imageDataUrl: string, opts?: {temperature?: number}) => Promise<string>} [describeVision]
+ */
+
+/**
+ * The cache seam the pipeline uses (adapts cache.js). Optional — caching is only
+ * active when supplied and settings.cacheMode !== 'off'.
+ * @typedef {object} PipelineCache
+ * @property {(model: string, sourceCode: string, targetCode: string, format: string, text: string) => string} key
+ * @property {(keys: string[]) => Promise<Map<string, string>>} getMany
+ * @property {(entries: Array<[string, string]>) => Promise<*>} setMany
  */
 
 // ---- Translation units ------------------------------------------------------
@@ -67,10 +78,7 @@
  * Persisted user settings. Mirrors `DEFAULT_SETTINGS` in `defaults.js`, which is
  * the single source of truth for defaults.
  * @typedef {object} Settings
- * @property {Provider} provider
- * @property {string} ollamaUrl
- * @property {string} lmstudioUrl
- * @property {string} llamacppUrl
+ * @property {string} serverUrl - the llama-server (OpenAI-compatible) base URL
  * @property {string} selectedModel
  * @property {string} targetLanguage
  * @property {string} sourceLanguage - `'auto'` to detect from the page, or a code
@@ -82,14 +90,11 @@
  * @property {boolean} useAdvanced
  * @property {string} customSystemPrompt
  * @property {string} customUserPromptTemplate
- * @property {string} requestFormat - `'auto'` | `'default'` | a model-family format
  * @property {number} temperature
  * @property {boolean} useStructuredOutput
  * @property {boolean} streamTranslations
  * @property {number} maxOutputRetries
- * @property {boolean} plainTextFallback
  * @property {boolean} showGlow
- * @property {number} numCtx
  * @property {'persistent'|'session'|'off'} cacheMode
  * @property {boolean} debug
  * @property {boolean} floatingButton
@@ -114,7 +119,6 @@
 /** @typedef {{ type: 'CLEAR_CACHE' }} ClearCacheMessage */
 /** @typedef {{ type: 'CACHE_COUNT' }} CacheCountMessage */
 /** @typedef {{ type: 'CACHE_BACKEND' }} CacheBackendMessage */
-/** @typedef {{ type: 'DESCRIBE_IMAGE', imageDataUrl: string }} DescribeImageMessage */
 /** @typedef {{ type: 'PARTIAL_TRANSLATION', translations: TranslationResult[] }} PartialTranslationMessage */
 
 /**
@@ -131,7 +135,6 @@
  *   ClearCacheMessage |
  *   CacheCountMessage |
  *   CacheBackendMessage |
- *   DescribeImageMessage |
  *   PartialTranslationMessage
  * )} Message
  */

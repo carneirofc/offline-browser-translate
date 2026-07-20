@@ -2,7 +2,7 @@
   <img src="assets/logo.png" width="48" valign="middle"> Local LLM Translate
 </h1>
 
-A privacy-focused browser extension that translates web pages using local LLMs (Ollama, LM Studio, or llama.cpp). **Your data never leaves your machine.**
+A privacy-focused browser extension that translates web pages using a local llama-server (llama.cpp's OpenAI-compatible server). **Your data never leaves your machine.**
 
 <p align="center">
   <a href="https://github.com/carneirofc/offline-browser-translate/actions/workflows/lint.yml"><img src="https://github.com/carneirofc/offline-browser-translate/actions/workflows/lint.yml/badge.svg" alt="Lint"></a>
@@ -29,20 +29,20 @@ A privacy-focused browser extension that translates web pages using local LLMs (
 
 ## Features
 
-- 🔒 **100% Private** - All translations happen on your local machine via Ollama, LM Studio, or llama.cpp
+- 🔒 **100% Private** - All translations happen on your local machine via a local llama-server (llama.cpp's OpenAI-compatible server)
 - 🎯 **Smart Prioritization** - Visible content and headings are translated first
 - 🌍 **Many Languages** - Supports many many languages :3
 - ⚡ **Translation Cache** - Optional: translate identical text once and reuse it (great for forums). Off by default; stored locally with a session-only or persistent mode
 
 ## Requirements
 
-You need one of these running locally:
+You need [**llama.cpp**](https://github.com/ggml-org/llama.cpp)'s `llama-server` running locally with a translation-capable model loaded (e.g. `TranslateGemma`, `tencent.hunyuan-mt`, `qwen3`, etc.):
 
-- **[Ollama](https://ollama.ai/)** (default: `http://localhost:11434`)
-- **[LM Studio](https://lmstudio.ai/)** (default: `http://localhost:1234`)
-- **[llama.cpp](https://github.com/ggml-org/llama.cpp)** (`llama-server`, default: `http://localhost:8080`)
+```bash
+llama-server -hf <model> --port 8080
+```
 
-With a translation-capable model loaded (e.g. `TranslateGemma`, `tencent.hunyuan-mt`, `qwen3`, etc.)
+Then point the extension's **Server URL** (in Advanced Settings / Options) at `http://localhost:8080` — this is the default.
 
 ## Installation
 
@@ -96,11 +96,9 @@ Click **Advanced Settings** to configure:
 
 | Setting | Description |
 |---------|-------------|
-| Provider | Auto-detect, Ollama only, LM Studio only, or llama.cpp only |
-| URLs | Custom endpoints for Ollama/LM Studio/llama.cpp |
+| Server URL | Endpoint for your local llama-server (default `http://localhost:8080`) |
 | Max tokens/items per batch | Control batch sizes |
 | Temperature | Model creativity (lower = more consistent) |
-| Request Format (*work in progress*) | Default JSON, Hunyuan-MT, Simple, or Custom |
 | Show Glow | Toggle visual indicator on translated text |
 | Cache translations | Reuse stored translations for identical text — *off* (default), *until browser close*, or *across sessions*; includes a "Clear cache" button |
 
@@ -113,7 +111,7 @@ To avoid re-translating the same text over and over (forum boilerplate, menus, u
   - **Until I close the browser** — cache speeds things up while you browse, then is wiped on the next browser start. Kept in memory, so nothing translation-related lingers on disk between sessions. Works in every browser.
   - **Keep across sessions** — cache persists on disk (IndexedDB) until you clear it. Best for repeatedly visiting the same sites. Hardened browsers that block IndexedDB (e.g. Mullvad/Tor-based Firefox) disable this option automatically and fall back to the in-memory session cache.
 - **What's cached:** the translated output for each source text segment, stored locally (in memory, or IndexedDB for the persistent mode) — nothing is uploaded.
-- **How it's keyed:** by the source text plus everything that determines the model's output — model, source & target language, request format, prompt template, structured-output mode, and temperature. Changing any of these yields fresh translations instead of stale cached ones, so the cache never serves output that wouldn't match your current settings.
+- **How it's keyed:** by the source text plus everything that determines the model's output — model, source & target language, prompt template, structured-output mode, and temperature. Changing any of these yields fresh translations instead of stale cached ones, so the cache never serves output that wouldn't match your current settings.
 - **De-duplication:** within a single page, identical strings are translated only once and the result is reused for every occurrence (this happens regardless of cache mode).
 - **Clearing:** use **Clear cache** to wipe it at any time (the button shows the current entry count). The cache is capped (oldest entries are evicted first).
 
@@ -121,7 +119,9 @@ To avoid re-translating the same text over and over (forum boilerplate, menus, u
 
 ```
 ├── manifest.json      # Extension manifest (MV3)
-├── background.js      # Background script (LLM API, settings)
+├── background.js      # Background script (settings, message routing)
+├── llama-server.js    # OpenAI-compatible llama-server client
+├── translate-pipeline.js # Batching, cache, response parsing, image description
 ├── content.js         # Content script (DOM manipulation)
 ├── popup/
 │   ├── popup.html     # Popup UI

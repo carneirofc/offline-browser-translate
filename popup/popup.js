@@ -383,9 +383,9 @@ const langPicker = createPicker({
     initialValue: 'en',
 });
 
-// Model picker: items are { id, name, provider } objects loaded from providers.
-// allModels lives on the instance and feeds getItems(); model-specific helpers
-// (setModels / getSelectedProvider) are attached after creation.
+// Model picker: items are { id, name } objects loaded from the server.
+// allModels lives on the instance and feeds getItems(); setModels is attached
+// after creation.
 const modelPicker = createPicker({
     els: {
         picker: elements.modelPickerEl,
@@ -404,20 +404,9 @@ const modelPicker = createPicker({
         const m = modelPicker.allModels.find(x => x.id === id);
         return m ? m.name : (id || 'Select a model');
     },
-    decorateOption: (li, m) => {
-        const badge = document.createElement('span');
-        badge.className = 'model-provider-badge';
-        badge.textContent = m.provider;
-        li.appendChild(badge);
-    },
 });
 
 modelPicker.allModels = [];
-
-modelPicker.getSelectedProvider = function () {
-    const m = this.allModels.find(x => x.id === this.value);
-    return m ? m.provider : null;
-};
 
 modelPicker.setModels = function (models) {
     this.allModels = models;
@@ -497,83 +486,37 @@ function applySettingsToUI() {
     }
 }
 
-// Check which providers are available
+// Whether the llama-server is reachable.
 let providersAvailable = false;
 
-/** Check which LLM providers are reachable and update the status UI accordingly. */
+/** Check whether the llama-server is reachable and update the status UI accordingly. */
 async function checkProviders() {
     const statusWrapper = elements.providerStatus;
     const statusDot = statusWrapper.querySelector('.status-dot');
 
     try {
-        const response = await browserAPI.runtime.sendMessage({ type: 'DETECT_PROVIDERS' });
-        
-        // Resolve active provider using setting or currently selected model's provider
-        const providerSetting = currentSettings.provider; // 'auto', 'ollama', 'lmstudio', 'llamacpp'
-        const selectedModelProvider = modelPicker.getSelectedProvider();
+        // DETECT_PROVIDERS now probes the single server: { available, blocked }.
+        const { available, blocked } = await browserAPI.runtime.sendMessage({ type: 'DETECT_PROVIDERS' });
 
-        let activeProvider = providerSetting;
-        if (activeProvider === 'auto' && selectedModelProvider) {
-            activeProvider = selectedModelProvider;
-        }
-
-        let connected = false;
-        let blocked = false;
-        let blockedType = ''; // 'ollama', 'lmstudio', or 'llamacpp'
-        const connectedProviders = [];
-
-        if (response.ollama) connectedProviders.push('Ollama');
-        if (response.lmstudio) connectedProviders.push('LM Studio');
-        if (response.llamacpp) connectedProviders.push('llama.cpp');
-
-        if (activeProvider === 'ollama') {
-            connected = response.ollama;
-            blocked = response.ollama_blocked;
-            blockedType = 'ollama';
-        } else if (activeProvider === 'lmstudio') {
-            connected = response.lmstudio;
-            blocked = response.lmstudio_blocked;
-            blockedType = 'lmstudio';
-        } else if (activeProvider === 'llamacpp') {
-            connected = response.llamacpp;
-            blocked = response.llamacpp_blocked;
-            blockedType = 'llamacpp';
-        } else {
-            // 'auto' mode with no specific model selected yet
-            connected = connectedProviders.length > 0;
-            if (!connected) {
-                blocked = response.ollama_blocked || response.lmstudio_blocked || response.llamacpp_blocked;
-                blockedType = response.ollama_blocked ? 'ollama' : (response.lmstudio_blocked ? 'lmstudio' : 'llamacpp');
-            }
-        }
-
-        if (connected) {
+        if (available) {
             statusDot.className = 'status-dot connected';
-            statusWrapper.title = `Connected: ${connectedProviders.join(', ')}`;
+            statusWrapper.title = 'Connected to llama-server';
             providersAvailable = true;
             hideSetupBanner();
         } else if (blocked) {
             statusDot.className = 'status-dot error';
-            statusWrapper.title = blockedType === 'ollama'
-                ? 'Ollama is running but blocking the extension (CORS)'
-                : blockedType === 'lmstudio'
-                    ? 'LM Studio is running but blocking the extension (CORS)'
-                    : 'llama.cpp server is running but blocking the extension (CORS)';
+            statusWrapper.title = 'llama-server is running but blocking the extension (CORS)';
             providersAvailable = false;
-            showSetupBanner(
-                blockedType === 'ollama' ? 'cors-blocked-ollama'
-                    : blockedType === 'lmstudio' ? 'cors-blocked-lmstudio'
-                        : 'cors-blocked-llamacpp'
-            );
+            showSetupBanner('cors-blocked');
         } else {
             statusDot.className = 'status-dot error';
-            statusWrapper.title = 'No providers found';
+            statusWrapper.title = 'llama-server not found';
             providersAvailable = false;
             showSetupBanner();
         }
     } catch (e) {
         statusDot.className = 'status-dot error';
-        statusWrapper.title = 'Error checking providers';
+        statusWrapper.title = 'Error checking the server';
         providersAvailable = false;
         showSetupBanner();
     }
@@ -584,50 +527,23 @@ function bannerHTML(type) {
     if (type === 'no-models') {
         return `
             <div style="font-weight: bold; margin-bottom: 4px; color: var(--warn);">No translation models found</div>
-            <div>Your LLM provider is connected, but you have not downloaded a translation model yet.</div>
-            <div style="margin-top: 6px;">Recommended model:</div>
-            <div style="background: ButtonFace; padding: 4px 8px; border-radius: 4px; font-family: monospace; display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
-                <code>ollama pull translategemma</code>
-            </div>
-            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Or download a model in LM Studio (search for "translate"). Click the refresh button above when done.</div>
+            <div>llama-server is connected, but it hasn't loaded a model yet.</div>
+            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Start llama-server with a model (e.g. <code style="background: ButtonFace; padding: 1px 4px; border-radius: 3px;">llama-server -hf &lt;model&gt; --port 8080</code>), then click the refresh button above.</div>
         `;
     }
-    if (type === 'cors-blocked-ollama') {
+    if (type === 'cors-blocked') {
         return `
-            <div style="font-weight: bold; margin-bottom: 4px; color: var(--warn);">Ollama is blocking the extension</div>
-            <div>Ollama is running, but it is not allowing requests from browser extensions (CORS policy).</div>
-            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;"><a href="https://api.onlyoffice.com/docs/plugin-and-macros/ai/configuring-ollama-with-cors/" target="_blank" style="color: AccentColor;">See CORS instructions for Ollama here</a>. Click the refresh button above when done.</div>
-        `;
-    }
-    if (type === 'cors-blocked-lmstudio') {
-        return `
-            <div style="font-weight: bold; margin-bottom: 4px; color: var(--warn);">LM Studio is blocking the extension</div>
-            <div>LM Studio server is running, but Cross-Origin Resource Sharing (CORS) is disabled.</div>
-            <div style="margin-top: 6px; line-height: 1.4;">
-                To enable CORS:
-                <ol style="margin: 4px 0; padding-left: 18px;">
-                    <li>Open <b>LM Studio</b></li>
-                    <li>Go to the <b>Developer</b> tab (server icon on the left sidebar)</li>
-                    <li>Under <b>Server Settings</b>, activate <b>"Enable CORS"</b></li>
-                    <li>Restart the server</li>
-                </ol>
-            </div>
-            <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Click the refresh button above when done.</div>
-        `;
-    }
-    if (type === 'cors-blocked-llamacpp') {
-        return `
-            <div style="font-weight: bold; margin-bottom: 4px; color: var(--warn);">llama.cpp server is blocking the extension</div>
+            <div style="font-weight: bold; margin-bottom: 4px; color: var(--warn);">llama-server is blocking the extension</div>
             <div>llama-server is running, but its <code style="background: ButtonFace; padding: 1px 4px; border-radius: 3px;">--cors-origins</code> setting does not allow requests from this extension.</div>
             <div style="margin-top: 6px; font-size: 11px; opacity: 0.8;">Restart llama-server with <code style="background: ButtonFace; padding: 1px 4px; border-radius: 3px;">--cors-origins "*"</code> (the default) or add this extension's origin explicitly. Click the refresh button above when done.</div>
         `;
     }
     return `
-        <div style="font-weight: bold; margin-bottom: 4px; color: var(--warn);">No LLM provider detected</div>
-        <div>To use this extension, you need a local LLM server running:</div>
+        <div style="font-weight: bold; margin-bottom: 4px; color: var(--warn);">llama-server not detected</div>
+        <div>To use this extension, you need <a href="https://github.com/ggml-org/llama.cpp" target="_blank" style="color: AccentColor;">llama.cpp's llama-server</a> running locally:</div>
         <ol style="margin: 6px 0 2px 18px; padding: 0;">
-            <li>Install <a href="https://ollama.com" target="_blank" style="color: AccentColor;">Ollama</a>, <a href="https://lmstudio.ai" target="_blank" style="color: AccentColor;">LM Studio</a>, or <a href="https://github.com/ggml-org/llama.cpp" target="_blank" style="color: AccentColor;">llama.cpp</a></li>
-            <li>Load a translation model (e.g. <code style="background: ButtonFace; padding: 1px 4px; border-radius: 3px;">ollama pull translategemma</code>)</li>
+            <li>Start it with a model (e.g. <code style="background: ButtonFace; padding: 1px 4px; border-radius: 3px;">llama-server -hf &lt;model&gt; --port 8080</code>)</li>
+            <li>Set the Server URL in options if it isn't <code style="background: ButtonFace; padding: 1px 4px; border-radius: 3px;">http://localhost:8080</code></li>
             <li>Click the refresh button above</li>
         </ol>
     `;
@@ -686,17 +602,9 @@ async function loadModels(forceRefresh = false) {
             elements.modelTriggerLabel.textContent = 'No models found';
             elements.modelTrigger.disabled = false;
             if (providersAvailable) {
-                // If any provider is blocked by CORS, prioritize showing the CORS banner
+                // If the server is blocked by CORS, prioritize showing the CORS banner
                 const detectResponse = await browserAPI.runtime.sendMessage({ type: 'DETECT_PROVIDERS' }).catch(() => ({}));
-                if (detectResponse.ollama_blocked || detectResponse.lmstudio_blocked || detectResponse.llamacpp_blocked) {
-                    showSetupBanner(
-                        detectResponse.ollama_blocked ? 'cors-blocked-ollama'
-                            : detectResponse.lmstudio_blocked ? 'cors-blocked-lmstudio'
-                                : 'cors-blocked-llamacpp'
-                    );
-                } else {
-                    showSetupBanner('no-models');
-                }
+                showSetupBanner(detectResponse.blocked ? 'cors-blocked' : 'no-models');
             }
             return;
         }
@@ -727,8 +635,8 @@ async function loadModels(forceRefresh = false) {
 /** Save current settings. */
 async function saveCurrentSettings() {
     // Spread the current settings and override ONLY the fields the slim popup
-    // owns. Provider, server URLs, token/temperature and cache mode now live on
-    // the options page; keeping them out of this write means the background merge
+    // owns. Server URL, token/temperature and cache mode now live on the options
+    // page; keeping them out of this write means the background merge
     // preserves whatever was configured there instead of clobbering it with
     // now-deleted popup fields.
     currentSettings = {
@@ -770,7 +678,7 @@ async function startTranslation() {
     }
 
     if (!providersAvailable) {
-        showToast('No LLM provider running. Start Ollama, LM Studio, or llama.cpp first.', 'error');
+        showToast('llama-server is not running. Start it first (default http://localhost:8080).', 'error');
         return;
     }
 
@@ -960,14 +868,6 @@ function setupEventListeners() {
     if (elements.openOptions) {
         elements.openOptions.addEventListener('click', () => {
             browserAPI.runtime.openOptionsPage();
-        });
-    }
-
-    // Open translator page
-    const openTranslatorBtn = document.getElementById('openTranslator');
-    if (openTranslatorBtn) {
-        openTranslatorBtn.addEventListener('click', () => {
-            browserAPI.tabs.create({ url: browserAPI.runtime.getURL('translator/translator.html') });
         });
     }
 }

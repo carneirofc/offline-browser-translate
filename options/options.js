@@ -5,56 +5,12 @@
 // Use browser API with chrome fallback for Firefox compatibility
 const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
-// DEFAULT_SETTINGS is provided by defaults.js (loaded before this script).
-
-// Format descriptions
-const FORMAT_DESCRIPTIONS = {
-    auto: 'Picks the right format automatically based on the selected model.',
-    default: 'Standard JSON output format. Best for most models.',
-    translategemma: 'Specialized format for TranslateGemma models.',
-    hunyuan: 'Format optimized for Hunyuan-MT models. No system message.',
-    simple: 'Simple line-by-line output for smaller models.',
-    custom: 'Your custom prompts. Edit below.'
-};
-
-// Prompt templates for each format
-const PROMPT_TEMPLATES = {
-    default: {
-        system: `You are a professional translator. Translate the given texts to {{targetLanguage}}. 
-Respond ONLY with a JSON object in this exact format:
-{"translations": [{"id": 0, "text": "translated text"}, {"id": 1, "text": "another translation"}]}
-Maintain the original meaning, tone, and formatting. Do not add explanations.`,
-        user: `Translate the following texts to {{targetLanguage}}:\n{{texts}}`
-    },
-    simple: {
-        system: `You are a translator. Translate to {{targetLanguage}}. Output JSON only:
-{"translations": [{"id": N, "text": "translation"}]}`,
-        user: `Translate to {{targetLanguage}}:\n{{texts}}`
-    },
-    hunyuan: {
-        system: '',
-        user: `Translate the following segment into {{targetLanguage}}, without additional explanation.\n{{texts}}`
-    },
-    translategemma: {
-        system: '',
-        user: `You are a professional {{sourceLang}} ({{sourceCode}}) to {{targetLang}} ({{targetCode}}) translator. Your goal is to accurately convey the meaning and nuances of the original {{sourceLang}} text while adhering to {{targetLang}} grammar, vocabulary, and cultural sensitivities.
-Produce only the {{targetLang}} translation, without any additional explanations or commentary. Please translate the following {{sourceLang}} text into {{targetLang}}:
-
-
-{{texts}}`
-    },
-    custom: {
-        system: '',
-        user: ''
-    }
-};
+// DEFAULT_SETTINGS and DEFAULT_TRANSLATE_TEMPLATE are provided by defaults.js
+// (loaded before this script).
 
 // DOM Elements
 const elements = {
-    providerSelect: document.getElementById('providerSelect'),
-    ollamaUrl: document.getElementById('ollamaUrl'),
-    lmstudioUrl: document.getElementById('lmstudioUrl'),
-    llamacppUrl: document.getElementById('llamacppUrl'),
+    serverUrl: document.getElementById('serverUrl'),
     modelSelect: document.getElementById('modelSelect'),
     refreshModels: document.getElementById('refreshModels'),
     visionModelSelect: document.getElementById('visionModelSelect'),
@@ -64,8 +20,7 @@ const elements = {
     sourceLanguage: document.getElementById('sourceLanguage'),
     sourceLanguageGroup: document.getElementById('sourceLanguageGroup'),
     targetLanguage: document.getElementById('targetLanguage'),
-    requestFormat: document.getElementById('requestFormat'),
-    formatDescription: document.getElementById('formatDescription'),
+    useCustomPrompt: document.getElementById('useCustomPrompt'),
     systemPrompt: document.getElementById('systemPrompt'),
     userPrompt: document.getElementById('userPrompt'),
     maxTokens: document.getElementById('maxTokens'),
@@ -76,7 +31,6 @@ const elements = {
     temperatureValue: document.getElementById('temperatureValue'),
     useStructuredOutput: document.getElementById('useStructuredOutput'),
     streamTranslations: document.getElementById('streamTranslations'),
-    plainTextFallback: document.getElementById('plainTextFallback'),
     showGlow: document.getElementById('showGlow'),
     cacheMode: document.getElementById('cacheMode'),
     cacheBackendWarning: document.getElementById('cacheBackendWarning'),
@@ -86,11 +40,6 @@ const elements = {
     floatingButton: document.getElementById('floatingButton'),
     hoverEnabled: document.getElementById('hoverEnabled'),
     hoverModifier: document.getElementById('hoverModifier'),
-    customPromptsSection: document.getElementById('customPromptsSection'),
-    customSystem: document.getElementById('customSystem'),
-    customUser: document.getElementById('customUser'),
-    translateGemmaHelp: document.getElementById('translateGemmaHelp'),
-    copyTemplate: document.getElementById('copyTemplate'),
     saveSettings: document.getElementById('saveSettings'),
     resetSettings: document.getElementById('resetSettings'),
     toast: document.getElementById('toast')
@@ -233,8 +182,7 @@ async function loadModels() {
             for (const model of models) {
                 const option = document.createElement('option');
                 option.value = model.id;
-                option.textContent = `${model.name} (${model.provider})`;
-                option.dataset.provider = model.provider;
+                option.textContent = model.name;
                 elements.modelSelect.appendChild(option);
             }
 
@@ -243,9 +191,7 @@ async function loadModels() {
                 elements.modelSelect.value = currentSettings.selectedModel;
             }
 
-            // Refresh the "Auto → detected format" hint for the selected model
-            updateFormatDescription(elements.requestFormat.value);
-            updateVisibility();
+            applyPromptEditorVisibility();
         }
 
         populateVisionModels(models);
@@ -282,8 +228,7 @@ function populateVisionModels(models) {
     for (const model of models) {
         const option = document.createElement('option');
         option.value = model.id;
-        option.textContent = `${model.name} (${model.provider})`;
-        option.dataset.provider = model.provider;
+        option.textContent = model.name;
         select.appendChild(option);
     }
 
@@ -329,13 +274,10 @@ async function loadSettings() {
 
 /** Apply currentSettings values to the options page UI elements. */
 function applySettingsToUI() {
-    elements.providerSelect.value = currentSettings.provider;
-    elements.ollamaUrl.value = currentSettings.ollamaUrl;
-    elements.lmstudioUrl.value = currentSettings.lmstudioUrl;
-    elements.llamacppUrl.value = currentSettings.llamacppUrl;
+    elements.serverUrl.value = currentSettings.serverUrl;
+    elements.useCustomPrompt.checked = !!currentSettings.useAdvanced;
     elements.sourceLanguage.value = currentSettings.sourceLanguage || 'auto';
     elements.targetLanguage.value = currentSettings.targetLanguage;
-    elements.requestFormat.value = currentSettings.requestFormat;
     elements.maxTokens.value = currentSettings.maxTokensPerBatch;
     elements.maxItems.value = currentSettings.maxItemsPerBatch || 8;
     elements.temperature.value = currentSettings.temperature;
@@ -349,15 +291,12 @@ function applySettingsToUI() {
     }
     elements.useStructuredOutput.checked = currentSettings.useStructuredOutput;
     if (elements.streamTranslations) elements.streamTranslations.checked = currentSettings.streamTranslations !== false;
-    if (elements.plainTextFallback) elements.plainTextFallback.checked = currentSettings.plainTextFallback !== false;
     elements.showGlow.checked = currentSettings.showGlow !== false;
     if (elements.cacheMode) elements.cacheMode.value = currentSettings.cacheMode || 'off';
     elements.debugLogging.checked = !!currentSettings.debug;
     elements.floatingButton.checked = !!currentSettings.floatingButton;
     if (elements.hoverEnabled) elements.hoverEnabled.checked = !!currentSettings.hoverEnabled;
     if (elements.hoverModifier) elements.hoverModifier.value = currentSettings.hoverModifier || 'Alt';
-    elements.customSystem.value = currentSettings.customSystemPrompt || '';
-    elements.customUser.value = currentSettings.customUserPromptTemplate || '';
 
     // Image-describe prompt: show the saved override, or the shared default when
     // unset so the user always sees the actual prompt. (The vision-model dropdown
@@ -367,68 +306,23 @@ function applySettingsToUI() {
         elements.describePrompt.dispatchEvent(new Event('input'));
     }
 
-    // Update format description
-    updateFormatDescription(currentSettings.requestFormat);
-
-    // Show/hide sections based on format
-    updateVisibility();
+    // Prefill the translation prompt editor with the saved override, or the
+    // shared default template when the user hasn't customized it.
+    if (currentSettings.useAdvanced) {
+        elements.systemPrompt.value = currentSettings.customSystemPrompt || DEFAULT_TRANSLATE_TEMPLATE.system;
+        elements.userPrompt.value = currentSettings.customUserPromptTemplate || DEFAULT_TRANSLATE_TEMPLATE.user;
+    } else {
+        elements.systemPrompt.value = DEFAULT_TRANSLATE_TEMPLATE.system;
+        elements.userPrompt.value = DEFAULT_TRANSLATE_TEMPLATE.user;
+    }
+    elements.systemPrompt.dispatchEvent(new Event('input'));
+    elements.userPrompt.dispatchEvent(new Event('input'));
+    applyPromptEditorVisibility();
 }
 
-/**
- * The effective format = the explicit choice, or (for 'auto') the one detected
- * from the selected model. resolveRequestFormat/detectRequestFormat come from languages.js.
- */
-function getEffectiveFormat() {
-    const modelId = elements.modelSelect?.value || currentSettings.selectedModel;
-    return resolveRequestFormat({ requestFormat: elements.requestFormat.value }, modelId);
-}
-
-/**
- * Update format description and prompt editor. Shows the *effective* template so
- * the user can see what 'auto' resolved to for the current model.
- */
-function updateFormatDescription(format) {
-    const effective = format === 'auto' ? getEffectiveFormat() : format;
-
-    let desc = FORMAT_DESCRIPTIONS[format] || '';
-    if (format === 'auto' && (elements.modelSelect?.value || currentSettings.selectedModel)) {
-        desc += ` Detected for this model: ${effective}.`;
-    }
-    elements.formatDescription.textContent = desc;
-
-    // Populate prompt editor with the effective format's template
-    const template = PROMPT_TEMPLATES[effective] || PROMPT_TEMPLATES.default;
-    if (template && elements.systemPrompt && elements.userPrompt) {
-        if (effective === 'custom') {
-            elements.systemPrompt.value = currentSettings.customSystemPrompt || '';
-            elements.userPrompt.value = currentSettings.customUserPromptTemplate || '';
-        } else {
-            elements.systemPrompt.value = template.system || '';
-            elements.userPrompt.value = template.user || '';
-        }
-        elements.systemPrompt.dispatchEvent(new Event('input'));
-        elements.userPrompt.dispatchEvent(new Event('input'));
-    }
-}
-
-/** Update visibility of sections based on the effective format. */
-function updateVisibility() {
-    const selected = elements.requestFormat.value;
-    const effective = getEffectiveFormat();
-
-    // Custom prompts section — only when the user explicitly chose 'custom'
-    elements.customPromptsSection.hidden = selected !== 'custom';
-
-    // TranslateGemma help — when the effective format is translategemma
-    elements.translateGemmaHelp.hidden = effective !== 'translategemma';
-
-    // Source language only matters for TranslateGemma's prompt
-    if (elements.sourceLanguageGroup) {
-        elements.sourceLanguageGroup.hidden = effective !== 'translategemma';
-    }
-
-    // Structured JSON output is meaningless for plain-text formats; grey it out.
-    elements.useStructuredOutput.disabled = PLAIN_TEXT_FORMATS.has(effective);
+/** Show or hide the prompt editor based on whether custom prompts are enabled. */
+function applyPromptEditorVisibility() {
+    document.getElementById('promptEditor').hidden = !elements.useCustomPrompt.checked;
 }
 
 /**
@@ -445,10 +339,7 @@ function describePromptOverride() {
 async function saveCurrentSettings() {
     currentSettings = {
         ...currentSettings,
-        provider: elements.providerSelect.value,
-        ollamaUrl: elements.ollamaUrl.value,
-        lmstudioUrl: elements.lmstudioUrl.value,
-        llamacppUrl: elements.llamacppUrl.value,
+        serverUrl: elements.serverUrl.value,
         selectedModel: elements.modelSelect?.value || currentSettings.selectedModel,
         visionModel: elements.visionModelSelect ? elements.visionModelSelect.value : (currentSettings.visionModel || ''),
         // Store '' when the prompt is left at the default so a future default change
@@ -456,24 +347,22 @@ async function saveCurrentSettings() {
         describePrompt: describePromptOverride(),
         sourceLanguage: elements.sourceLanguage.value,
         targetLanguage: elements.targetLanguage.value,
-        requestFormat: elements.requestFormat.value,
         maxTokensPerBatch: parseInt(elements.maxTokens.value) || 2000,
         maxItemsPerBatch: parseInt(elements.maxItems.value) || 8,
         maxConcurrentRequests: parseInt(elements.maxConcurrent?.value) || 4,
         temperature: parseFloat(elements.temperature.value) || 0.3,
         useStructuredOutput: elements.useStructuredOutput.checked,
         streamTranslations: elements.streamTranslations ? elements.streamTranslations.checked : true,
-        plainTextFallback: elements.plainTextFallback ? elements.plainTextFallback.checked : true,
         showGlow: elements.showGlow.checked,
         cacheMode: elements.cacheMode ? elements.cacheMode.value : 'off',
         debug: elements.debugLogging.checked,
         floatingButton: elements.floatingButton.checked,
         hoverEnabled: elements.hoverEnabled ? elements.hoverEnabled.checked : false,
         hoverModifier: elements.hoverModifier ? elements.hoverModifier.value : 'Alt',
-        // Save custom prompts from the new prompt editor
-        customSystemPrompt: elements.systemPrompt?.value || elements.customSystem?.value || '',
-        customUserPromptTemplate: elements.userPrompt?.value || elements.customUser?.value || '',
-        useAdvanced: elements.requestFormat.value === 'custom'
+        // Save custom prompts from the prompt editor
+        customSystemPrompt: elements.systemPrompt?.value || '',
+        customUserPromptTemplate: elements.userPrompt?.value || '',
+        useAdvanced: elements.useCustomPrompt.checked
     };
 
     await browserAPI.runtime.sendMessage({
@@ -527,18 +416,13 @@ function setupEventListeners() {
         });
     }
 
-    // Request format change
-    elements.requestFormat.addEventListener('change', (e) => {
-        updateFormatDescription(e.target.value);
-        updateVisibility();
-    });
+    // Custom prompt toggle
+    elements.useCustomPrompt.addEventListener('change', applyPromptEditorVisibility);
 
     // Model selection
     if (elements.modelSelect) {
         elements.modelSelect.addEventListener('change', () => {
             currentSettings.selectedModel = elements.modelSelect.value;
-            updateFormatDescription(elements.requestFormat.value);
-            updateVisibility(); // Refresh detected-format hint + TranslateGemma help
         });
     }
 
@@ -578,11 +462,7 @@ function setupEventListeners() {
     elements.saveSettings.addEventListener('click', async () => {
         // Request host permission for any non-localhost server URL (opt-in).
         // Must run inside this click gesture, before any other awaits.
-        const granted = await ensureHostPermissions([
-            elements.ollamaUrl.value,
-            elements.lmstudioUrl.value,
-            elements.llamacppUrl.value
-        ]);
+        const granted = await ensureHostPermissions([elements.serverUrl.value]);
         await saveCurrentSettings();
         if (!granted) {
             showToast('Saved, but permission for the custom server was denied — remote models won\'t load until you allow it.', 'error', 5000);
@@ -615,27 +495,6 @@ function setupEventListeners() {
             }
         });
     }
-
-    // Copy LM Studio template
-    elements.copyTemplate.addEventListener('click', () => {
-        const template = `{{ bos_token }}
-{%- for message in messages -%}
-    {%- if message['role'] == 'user' or message['role'] == 'system' -%}
-        {{ '<start_of_turn>user\\n' + message['content'] | trim + '<end_of_turn>\\n' }}
-    {%- elif message['role'] == 'assistant' -%}
-        {{ '<start_of_turn>model\\n' + message['content'] | trim + '<end_of_turn>\\n' }}
-    {%- endif -%}
-{%- endfor -%}
-{%- if add_generation_prompt -%}
-    {{ '<start_of_turn>model\\n' }}
-{%- endif -%}`;
-
-        navigator.clipboard.writeText(template).then(() => {
-            showToast('Template copied to clipboard!');
-        }).catch(() => {
-            showToast('Failed to copy template', 'error');
-        });
-    });
 }
 
 // Initialize on DOM ready
