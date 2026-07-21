@@ -141,4 +141,12 @@ export default [
       globals: { ...globals.node },
     },
   },
+  {
+    // Dev-only packaging scripts — ES modules run under Node, never shipped.
+    files: ['scripts/**'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: { ...globals.node },
+    },
+  },
 ];

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local LLM Translate Extension",
-  "short_name": "LLM Translate",
+  "short_name": "LLMTranslate",
   "version": "2.0.0",
   "description": "Translate web pages with a local llama-server (llama.cpp, OpenAI-compatible). 100% private — your text never leaves your device.",
   "author": "Cláudio Carneiro",

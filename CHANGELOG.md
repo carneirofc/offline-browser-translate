@@ -48,6 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unit tests**: a dev-only `node:test` suite (`npm test`) covers the pure
   translation helpers — source detection, response parsing, and batch grouping.
   Nothing new ships in the extension bundle.
+- **Store readiness**: dev-only dual-store packaging — `npm run build`
+  (`scripts/build.mjs`) now emits both a Firefox zip (manifest as authored) and a
+  Chrome zip whose manifest strips Firefox-only keys (`browser_specific_settings`,
+  the top-level `developer` key, and `background.scripts`, keeping
+  `background.service_worker`); the release workflow attaches both. Added a
+  [Privacy Policy](PRIVACY.md), per-permission review justifications
+  (`docs/store/permissions.md`), store-listing copy (`docs/store/listing.md`),
+  and an [architecture doc](docs/ARCHITECTURE.md) documenting the surfaces,
+  module map, provider interface, and message protocol.
 
 ### Changed
 - **BREAKING**: the extension now targets **llama-server only** — the
@@ -58,6 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   name; in-app surfaces read "Local LLM Translate") ahead of publishing to the
   Firefox Add-ons store and the Chrome Web Store. No functional change; the MIT
   license and upstream attribution are unchanged.
+- Manifest `short_name` trimmed to `LLMTranslate` (≤12 chars) so Chrome does not
+  truncate it; `package.json` and `manifest.json` versions are aligned at 2.0.0.
 - **Dev tooling**: `npm run lint` now enforces JSDoc on top-level functions via
   `eslint-plugin-jsdoc` (fails on missing/malformed JSDoc), and existing
   functions across the codebase were documented to satisfy it.

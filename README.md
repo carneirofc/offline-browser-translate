@@ -90,6 +90,9 @@ This extension is designed to be privacy-focused:
 - ✅ Minimal permissions (only `localhost` host permissions)
 - ✅ The translation cache is **off by default**. When enabled it is stored **locally** (in memory, or IndexedDB for the persistent mode) and never leaves your machine; it can be set to clear on browser close, turned off, or cleared at any time
 
+See the full [Privacy Policy](PRIVACY.md) and the per-permission
+[justifications](docs/store/permissions.md).
+
 ## Settings
 
 Click **Advanced Settings** to configure:
@@ -118,17 +121,25 @@ To avoid re-translating the same text over and over (forum boilerplate, menus, u
 ## File Structure
 
 ```
-├── manifest.json      # Extension manifest (MV3)
-├── background.js      # Background script (settings, message routing)
-├── llama-server.js    # OpenAI-compatible llama-server client
-├── translate-pipeline.js # Batching, cache, response parsing, image description
-├── content.js         # Content script (DOM manipulation)
-├── popup/
-│   ├── popup.html     # Popup UI
-│   ├── popup.css      # Styles (Everforest Dark theme)
-│   └── popup.js       # Popup logic
-└── icons/             # Extension icons
+├── manifest.json          # Extension manifest (MV3; Firefox scripts + Chrome service_worker)
+├── background.js          # Orchestrator: settings, provider/pipeline wiring, message routing, context menus
+├── llama-server.js        # OpenAI-compatible llama-server client (createLlamaServer)
+├── translate-pipeline.js  # Batching, cache, retry, response parsing, image description (createPipeline)
+├── translation-core.js    # Pure helpers: language detection, prompt templating, parsing, batching
+├── content.js             # Content script (DOM extraction/replacement, hover UI, describe modal)
+├── defaults.js            # Single source of truth for default settings & prompts
+├── cache.js               # Two-layer translation cache (in-memory + IndexedDB)
+├── languages.js           # Language table + host-permission helpers
+├── native.css             # Shared native-look stylesheet
+├── popup/                 # Toolbar popup UI (popup.html/.css/.js)
+├── options/               # Options page (options.html/.css/.js)
+├── scripts/build.mjs      # Dev-only: packages the Firefox + Chrome zips
+├── docs/                  # ARCHITECTURE.md, agents/, store/ listing & permission copy
+└── icons/                 # Extension icons
 ```
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the surface map, module
+responsibilities, provider interface, and full message-protocol table.
 
 ## Development
 
@@ -139,18 +150,25 @@ the browser and it runs.
 The only tooling is **dev-time linting and packaging** (it never ships to users):
 
 ```bash
-npm ci            # install dev tools (ESLint, web-ext)
-npm test          # run the unit tests (Node's built-in test runner)
+npm ci            # install dev tools (ESLint, web-ext, Vitest, TypeScript)
+npm test          # run the unit tests (Vitest, jsdom env)
+npm run typecheck # tsc --noEmit --checkJs over the JSDoc-typed sources
 npm run lint      # ESLint — static analysis + JSDoc enforcement
 npm run lint:ext  # web-ext lint (validates manifest.json)
-npm run build     # package into web-ext-artifacts/*.zip
+npm run build     # package both stores into web-ext-artifacts/*.zip (Firefox + Chrome)
 ```
 
 `npm run lint` uses ESLint with **`eslint-plugin-jsdoc`**, which fails the build
 on missing or malformed JSDoc for top-level functions, so the codebase stays
-documented. `npm test` runs the pure translation helpers
-(`translation-core.js`) under `node --test`. Both are **dev-only**: the shipped
-extension contains no `node_modules` and no test/lint files.
+documented. `npm test` runs the dual-target pure modules
+(`translation-core.js`, `translate-pipeline.js`, `llama-server.js`, `cache.js`,
+`languages.js`) under **Vitest**, and `npm run typecheck` checks the JSDoc types.
+All three are **dev-only**: the shipped extension contains no `node_modules` and
+no test/lint files.
+
+`npm run build` runs `scripts/build.mjs`, which emits **two** zips — a Firefox
+package (manifest as authored) and a Chrome package (Firefox-only manifest keys
+stripped). See [`docs/ARCHITECTURE.md#packaging`](docs/ARCHITECTURE.md#packaging).
 
 CI runs these on every PR (`ESLint` + `web-ext lint`), plus **CodeQL** security
 analysis. Pushing a `v*` tag builds the zip, creates a GitHub Release, and — when

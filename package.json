@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:ext": "web-ext lint --source-dir=.",
-    "build": "web-ext build"
+    "build": "node scripts/build.mjs",
+    "build:firefox": "web-ext build"
   },
   "webExt": {
     "sourceDir": ".",
@@ -31,6 +32,9 @@
       ".claude/**",
       ".agents",
       ".agents/**",
+      "scripts",
+      "scripts/**",
+      "PRIVACY.md",
       ".vscode/**",
       "graphify-out",
       "graphify-out/**",

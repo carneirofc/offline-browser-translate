@@ -18,13 +18,14 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Build extension package
+      - name: Build extension packages (Firefox + Chrome)
         run: npm run build
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
+          # `npm run build` emits both the Firefox and Chrome zips; attach both.
           files: web-ext-artifacts/*.zip
 
   amo:
