@@ -353,7 +353,7 @@
 
             const targetLanguage = settings.targetLanguage || 'en';
             const targetLangName = getLanguageName(targetLanguage);
-            const defaultPrompt = (typeof g.DEFAULT_DESCRIBE_PROMPT !== 'undefined') ? g.DEFAULT_DESCRIBE_PROMPT : '';
+            const defaultPrompt = defaults.DEFAULT_DESCRIBE_PROMPT || '';
             const promptTemplate = settings.describePrompt || defaultPrompt;
             const prompt = promptTemplate.replace(/{{targetLanguage}}/g, targetLangName);
 

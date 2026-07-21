@@ -109,6 +109,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `provider`, `ollamaUrl`, `lmstudioUrl`, `numCtx`, `requestFormat`, and
   `plainTextFallback` settings.
 
+### Fixed
+- Translation crashed in the browser with `DEFAULT_TEMPLATE is undefined`:
+  `defaults.js` declared its shared values with top-level `const`, which does
+  not create global-object properties in a classic script, while
+  `translate-pipeline.js` read them as `self.*` properties. The defaults are
+  now explicitly attached to the global object, and the image-describe path
+  reads `DEFAULT_DESCRIBE_PROMPT` from the shared module instead of silently
+  falling back to an empty prompt.
+
 ## [1.8.0]
 
 ### Added

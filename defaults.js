@@ -75,6 +75,15 @@ Maintain the original meaning, tone, and formatting. Do not add explanations.`,
     user: `Translate the following {{sourceLang}} texts to {{targetLanguage}}:\n{{texts}}`
 };
 
+// Attach to the global object explicitly: top-level `const` in a classic script
+// does NOT create a globalThis property, and translate-pipeline.js reads these
+// as properties (`g.DEFAULT_TRANSLATE_TEMPLATE`), not bare identifiers.
+(function () {
+    const g = (typeof self !== 'undefined') ? self
+        : (typeof globalThis !== 'undefined') ? globalThis : this;
+    Object.assign(g, { DEFAULT_SETTINGS, DEFAULT_DESCRIBE_PROMPT, DEFAULT_TRANSLATE_TEMPLATE });
+})();
+
 // Node/CommonJS callers (translate-pipeline.js under Vitest) load the shared
 // defaults via require(); the browser reads them as globals declared above.
 if (typeof module !== 'undefined' && module.exports) {
