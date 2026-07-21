@@ -52,7 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`scripts/build.mjs`) now emits both a Firefox zip (manifest as authored) and a
   Chrome zip whose manifest strips Firefox-only keys (`browser_specific_settings`,
   the top-level `developer` key, and `background.scripts`, keeping
-  `background.service_worker`); the release workflow attaches both. Added a
+  `background.service_worker`); the release workflow attaches both, and CI
+  uploads both packages as an `extension-packages` build artifact on every
+  push/PR. Added a
   [Privacy Policy](PRIVACY.md), per-permission review justifications
   (`docs/store/permissions.md`), store-listing copy (`docs/store/listing.md`),
   and an [architecture doc](docs/ARCHITECTURE.md) documenting the surfaces,
